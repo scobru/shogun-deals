@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="shogun-dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shogun Protocol - Storage Deals</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
+  <!-- Gun.js and SEA for encryption - MUST be loaded before shogun-core -->
+  <script src="https://cdn.jsdelivr.net/npm/gun@0.2020.1241/gun.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gun@0.2020.1241/sea.js"></script>
+  <!-- Shogun Core - MUST be loaded after Gun.js -->
+  <script src="https://cdn.jsdelivr.net/npm/shogun-core@6.5.5/dist/browser/shogun-core.js"></script>
+  <style>
+    body {
+      line-height: 1.6;
+      background: linear-gradient(135deg, #1A1A1A 0%, #0D0D0D 100%);
+      min-height: 100vh;
+    }
+
+    .hero-gradient {
+      background: radial-gradient(ellipse at top, rgba(66, 165, 245, 0.08) 0%, transparent 60%);
+    }
+
+    .tier-card {
+      border: 2px solid #404040;
+      border-radius: 1rem;
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+      background-color: rgba(40, 40, 40, 0.5);
+      cursor: pointer;
+    }
+
+    .tier-card:hover {
+      border-color: #606060;
+      background-color: rgba(40, 40, 40, 0.8);
+    }
+
+    .tier-card.selected {
+      border-color: #42A5F5;
+      background-color: rgba(66, 165, 245, 0.1);
+    }
+
+    .tier-price {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #42A5F5;
+    }
+
+    .deal-card {
+      background-color: rgba(40, 40, 40, 0.5);
+      border: 1px solid #404040;
+      border-radius: 1rem;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .deal-card:hover {
+      border-color: #606060;
+    }
+
+    .deal-card.active {
+      border-left: 4px solid #4CAF50;
+    }
+
+    .deal-card.pending {
+      border-left: 4px solid #FF9800;
+    }
+
+    .deal-card.expired {
+      border-left: 4px solid #F44336;
+      opacity: 0.7;
+    }
+
+    .deal-card.terminated {
+      border-left: 4px solid #9E9E9E;
+      opacity: 0.7;
+    }
+
+    .status-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-active { background-color: rgba(76, 175, 80, 0.2); color: #4CAF50; }
+    .status-pending { background-color: rgba(255, 152, 0, 0.2); color: #FF9800; }
+    .status-expired { background-color: rgba(244, 67, 54, 0.2); color: #F44336; }
+    .status-terminated { background-color: rgba(158, 158, 158, 0.2); color: #9E9E9E; }
+
+    .badge-standard { background-color: #607D8B; color: white; }
+    .badge-premium { background-color: #2196F3; color: white; }
+    .badge-enterprise { background-color: #9C27B0; color: white; }
+
+    .stat-card {
+      background-color: rgba(40, 40, 40, 0.5);
+      border: 1px solid #404040;
+      border-radius: 1rem;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #42A5F5;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      color: #A0A0A0;
+    }
+
+    .message {
+      padding: 1.5rem;
+      border-radius: 1rem;
+      margin-top: 1.5rem;
+      display: none;
+    }
+
+    .message.success {
+      background-color: rgba(76, 175, 80, 0.2);
+      border: 1px solid rgba(76, 175, 80, 0.3);
+      color: #4CAF50;
+    }
+
+    .message.error {
+      background-color: rgba(244, 67, 54, 0.2);
+      border: 1px solid rgba(244, 67, 54, 0.3);
+      color: #F44336;
+    }
+
+    .message.info {
+      background-color: rgba(66, 165, 245, 0.2);
+      border: 1px solid rgba(66, 165, 245, 0.3);
+      color: #42A5F5;
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 1.5rem;
+      height: 1.5rem;
+      border: 2px solid #404040;
+      border-radius: 50%;
+      border-top-color: #42A5F5;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .input-field {
+      background-color: #1A1A1A;
+      border: 1px solid #404040;
+      border-radius: 0.75rem;
+      padding: 0.75rem 1rem;
+      color: #FFFFFF;
+      width: 100%;
+      transition: all 0.3s ease;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: #42A5F5;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #FFFFFF;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tab-button {
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.75rem;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      background-color: transparent;
+      color: #A0A0A0;
+      border: 1px solid transparent;
+    }
+
+    .tab-button:hover {
+      background-color: rgba(66, 165, 245, 0.1);
+    }
+
+    .tab-button.active {
+      background-color: rgba(66, 165, 245, 0.2);
+      color: #42A5F5;
+      border-color: #42A5F5;
+    }
+
+    .network-selector {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background-color: rgba(40, 40, 40, 0.5);
+      border: 1px solid #404040;
+      border-radius: 1rem;
+    }
+  </style>
+</head>
+<body class="antialiased">
+  <div class="hero-gradient min-h-screen">
+    <div class="container mx-auto p-6 max-w-5xl">
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h1 class="text-3xl font-bold mb-2 text-[#FFFFFF]">Shogun Protocol</h1>
+          <p class="text-[#A0A0A0]">Decentralized Storage Deals</p>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-[#282828] rounded-full border border-[#404040]">
+          <span class="text-[#42A5F5] text-sm font-medium">Storage Deals</span>
+          <span class="text-[#606060]">|</span>
+          <span class="text-[#A0A0A0] text-sm">On-Chain Contracts</span>
+        </div>
+      </div>
+
+      <!-- Network Configuration -->
+      <div class="network-selector">
+        <label class="text-[#A0A0A0] text-sm mb-2 block">Network</label>
+        <select id="networkSelect" class="input-field" onchange="changeNetwork()">
+          <option value="84532">Base Sepolia (Testnet)</option>
+          <option value="8453">Base Mainnet</option>
+        </select>
+        <div class="mt-2 text-xs text-[#606060]">
+          Registry: <span id="registryAddress" class="text-[#A0A0A0]">-</span><br>
+          StorageDealRegistry: <span id="dealRegistryAddress" class="text-[#A0A0A0]">-</span>
+        </div>
+      </div>
+
+      <!-- Main Card -->
+      <div class="card bg-[#282828] border border-[#404040] rounded-2xl mb-6 shadow-xl">
+        <div class="p-8 sm:p-10">
+          <div class="flex flex-col items-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#42A5F5] to-[#1976D2] mb-6 shadow-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h2 class="text-3xl font-bold mb-3 text-[#FFFFFF]">Storage Deals</h2>
+            <p class="text-[#A0A0A0] text-center">Per-file contracts with on-chain registration and griefing protection</p>
+          </div>
+
+          <!-- Wallet Connection -->
+          <div id="walletSection" class="mb-6">
+            <button id="connectWalletBtn" class="btn bg-[#42A5F5] hover:bg-[#1976D2] border-0 text-white w-full rounded-xl px-8 py-4 font-medium">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              Connect Wallet
+            </button>
+          </div>
+
+          <div id="connectedSection" style="display: none;">
+            <div class="flex items-center justify-between p-4 bg-[#1A1A1A] rounded-xl border border-[#404040] mb-6">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-[#4CAF50] flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <div class="text-[#FFFFFF] font-medium">Wallet Connected</div>
+                  <div class="text-[#A0A0A0] text-sm" id="walletAddress">0x...</div>
+                </div>
+              </div>
+              <button onclick="disconnectWallet()" class="text-[#F44336] hover:text-[#FF5722]">Disconnect</button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-2 mb-8 justify-center flex-wrap">
+              <button class="tab-button active" onclick="showTab('create', event)">Create Deal</button>
+              <button class="tab-button" onclick="showTab('mydeals', event)">My Deals</button>
+              <button class="tab-button" onclick="showTab('subscriptions', event)">Subscriptions</button>
+              <button class="tab-button" onclick="showTab('register', event)">Register</button>
+            </div>
+
+            <!-- Tab: Create Deal -->
+            <div id="tab-create" class="tab-content">
+              <h2 class="section-title">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Create New Deal
+              </h2>
+
+              <div class="space-y-4">
+                <!-- File Upload or CID Input -->
+                <div>
+                  <label class="text-[#A0A0A0] text-sm mb-2 block">Upload File or Enter IPFS CID *</label>
+                  <div class="flex gap-2 mb-2">
+                    <input type="file" id="dealFile" class="input-field flex-1" accept="*/*" onchange="handleFileSelect()">
+                    <button type="button" onclick="uploadToIPFS()" id="uploadBtn" class="btn bg-[#42A5F5] hover:bg-[#1976D2] border-0 text-white rounded-xl px-4" style="display: none;">
+                      Upload to IPFS
+                    </button>
+                  </div>
+                  <div class="text-[#606060] text-xs mb-2">OR</div>
+                  <input type="text" id="dealCid" class="input-field" placeholder="Qm... (or upload file above)">
+                  <p class="text-[#606060] text-xs mt-1">Upload a file to IPFS or enter an existing IPFS CID</p>
+                  
+                  <!-- Encryption Option -->
+                  <div class="mt-3 p-3 bg-[#1A1A1A] rounded-lg border border-[#404040]">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" id="dealEncryptionEnabled" class="checkbox checkbox-primary" checked>
+                      <span class="text-sm text-[#A0A0A0]">
+                        <span class="text-[#FFFFFF] font-medium">Enable Encryption</span>
+                        <span class="text-[#606060]"> - File will be encrypted before upload</span>
+                      </span>
+                    </label>
+                    <p class="text-xs text-[#606060] mt-1 ml-6">If disabled, file will be uploaded as public (unencrypted)</p>
+                  </div>
+                  
+                  <div id="uploadStatus" class="text-[#42A5F5] text-xs mt-1" style="display: none;"></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="text-[#A0A0A0] text-sm mb-2 block">File Size (MB) *</label>
+                    <input type="number" id="dealSizeMB" class="input-field" placeholder="100" min="1">
+                  </div>
+                  <div>
+                    <label class="text-[#A0A0A0] text-sm mb-2 block">Duration (Days) *</label>
+                    <input type="number" id="dealDuration" class="input-field" placeholder="30" min="7" value="30">
+                  </div>
+                </div>
+
+                <div>
+                  <label class="text-[#A0A0A0] text-sm mb-2 block">Tier</label>
+                  <select id="dealTier" class="input-field">
+                    <option value="standard">Standard - Basic storage</option>
+                    <option value="premium" selected>Premium - Erasure coding + 3x replication</option>
+                    <option value="enterprise">Enterprise - 5x replication + SLA</option>
+                  </select>
+                </div>
+
+                <!-- Relay Selection -->
+                <div>
+                  <label class="text-[#A0A0A0] text-sm mb-2 block">Select Relay Provider *</label>
+                  <div class="flex gap-2 mb-2">
+                    <button onclick="showRelayLeaderboard()" class="btn bg-[#42A5F5] hover:bg-[#1976D2] border-0 text-white rounded-xl px-4" title="View relay leaderboard">
+                      📊 Leaderboard
+                    </button>
+                    <select id="dealRelay" class="input-field flex-1">
+                      <option value="">Loading relays...</option>
+                    </select>
+                    <button onclick="loadAvailableRelays()" class="btn bg-[#404040] hover:bg-[#505050] border-0 text-white rounded-xl px-4" title="Refresh relay list">
+                      🔄
+                    </button>
+                  </div>
+                  <div id="relayInfo" class="text-[#606060] text-xs mt-1" style="display: none;">
+                    <div class="p-2 bg-[#1A1A1A] rounded border border-[#404040]">
+                      <div class="flex justify-between mb-1">
+                        <span>Stake:</span>
+                        <span id="relayStake" class="text-[#A0A0A0]">--</span>
+                      </div>
+                      <div class="flex justify-between mb-1">
+                        <span>Endpoint:</span>
+                        <a id="relayEndpoint" href="#" target="_blank" class="text-[#42A5F5] hover:underline text-xs">--</a>
+                      </div>
+                      <!-- Reputation section will be dynamically inserted here -->
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Client Stake (Optional) -->
+                <div>
+                  <label class="text-[#A0A0A0] text-sm mb-2 block">Client Stake (Optional)</label>
+                  <input type="number" id="clientStake" class="input-field" placeholder="0" min="0" step="0.001">
+                  <p class="text-[#606060] text-xs mt-1">Optional stake to improve griefing ratio. Leave 0 if not staking.</p>
+                </div>
+
+                <div id="dealPreview" class="p-4 bg-[#1A1A1A] rounded-lg border border-[#404040]" style="display: none;">
+                  <div class="flex justify-between mb-2">
+                    <span class="text-[#A0A0A0]">Estimated Price:</span>
+                    <span class="text-[#42A5F5] font-bold" id="dealPrice">--</span>
+                  </div>
+                  <div class="flex justify-between text-sm">
+                    <span class="text-[#606060]">Expires:</span>
+                    <span class="text-[#A0A0A0]" id="dealExpiry">--</span>
+                  </div>
+                </div>
+
+                <button id="createDealBtn" class="btn bg-[#42A5F5] hover:bg-[#1976D2] border-0 text-white w-full rounded-xl px-8 py-4 font-medium" onclick="createDeal()">
+                  Create Deal On-Chain
+                </button>
+              </div>
+
+              <div id="createMessage" class="message"></div>
+            </div>
+
+            <!-- Tab: My Deals -->
+            <div id="tab-mydeals" class="tab-content" style="display: none;">
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="section-title mb-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  My Deals
+                </h2>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="showAllDeals" class="checkbox checkbox-primary" onchange="loadMyDeals()" />
+                  <span class="text-sm text-[#A0A0A0]">Show all deals</span>
+                </label>
+              </div>
+
+              <div id="myDealsContent">
+                <!-- Stats -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div class="stat-card">
+                    <div class="stat-value" id="statTotal">0</div>
+                    <div class="stat-label">Total Deals</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-value" id="statActive">0</div>
+                    <div class="stat-label">Active</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-value" id="statStorage">0</div>
+                    <div class="stat-label">MB Stored</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-value" id="statSpent">$0</div>
+                    <div class="stat-label">Total Spent</div>
+                  </div>
+                </div>
+
+                <!-- Deals List -->
+                <div id="dealsList" class="space-y-4">
+                  <div class="text-center text-[#A0A0A0] py-8">
+                    <div class="loading-spinner mb-4"></div>
+                    <p>Loading deals...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab: Subscriptions -->
+            <div id="tab-subscriptions" class="tab-content" style="display: none;">
+              <h2 class="section-title">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                IPFS Storage Subscriptions
+              </h2>
+
+              <div class="space-y-6">
+                <!-- Relay Selection -->
+                <div>
+                  <label class="text-[#A0A0A0] text-sm mb-2 block">Select Relay *</label>
+                  <select id="subscriptionRelaySelect" class="input-field" onchange="loadSubscriptionTiers()">
+                    <option value="">Choose a relay...</option>
+                  </select>
+                  <p class="text-[#606060] text-xs mt-1">Choose a relay from the registry to subscribe to</p>
+                </div>
+
+                <!-- Subscription Status -->
+                <div id="subscriptionStatus" style="display: none;">
+                  <div class="p-4 bg-[#1A1A1A] rounded-xl border border-[#404040]">
+                    <h3 class="text-[#FFFFFF] font-medium mb-2">Current Subscription</h3>
+                    <div id="subscriptionStatusContent" class="text-[#A0A0A0] text-sm">
+                      Loading...
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Available Tiers -->
+                <div id="subscriptionTiers" style="display: none;">
+                  <h3 class="text-[#FFFFFF] font-medium mb-4">Available Subscription Tiers</h3>
+                  <div id="tiersList" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Tiers will be loaded here -->
+                  </div>
+                </div>
+
+                <!-- Subscription Files Management -->
+                <div id="subscriptionFilesSection" style="display: none;">
+                  <h3 class="text-[#FFFFFF] font-medium mb-4">My Uploaded Files</h3>
+                  
+                  <!-- Upload Section -->
+                  <div class="mb-6 p-4 bg-[#1A1A1A] rounded-xl border border-[#404040]">
+                    <h4 class="text-[#FFFFFF] font-medium mb-3">Upload File</h4>
+                    <div class="space-y-3">
+                      <input type="file" id="subscriptionFileInput" class="input-field" accept="*/*">
+                      
+                      <!-- Encryption Option -->
+                      <div class="p-3 bg-[#282828] rounded-lg border border-[#404040]">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" id="subscriptionEncryptionEnabled" class="checkbox checkbox-primary" checked>
+                          <span class="text-sm text-[#A0A0A0]">
+                            <span class="text-[#FFFFFF] font-medium">Enable Encryption</span>
+                            <span class="text-[#606060]"> - File will be encrypted before upload</span>
+                          </span>
+                        </label>
+                        <p class="text-xs text-[#606060] mt-1 ml-6">If disabled, file will be uploaded as public (unencrypted)</p>
+                      </div>
+                      
+                      <button onclick="uploadSubscriptionFile()" id="uploadSubscriptionBtn" class="btn bg-[#42A5F5] hover:bg-[#1976D2] border-0 text-white w-full">
+                        Upload to IPFS
+                      </button>
+                      <div id="subscriptionUploadStatus" class="text-sm" style="display: none;"></div>
+                    </div>
+                  </div>
+
+                  <!-- Files List -->
+                  <div id="subscriptionFilesList" class="space-y-3">
+                    <div class="text-center text-[#A0A0A0] py-4">
+                      <div class="loading-spinner mb-2"></div>
+                      <p>Loading files...</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Subscription Message -->
+                <div id="subscriptionMessage" class="message"></div>
+              </div>
+            </div>
+
+            <!-- Tab: Register -->
+            <div id="tab-register" class="tab-content" style="display: none;">
+              <h2 class="section-title">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+                Register to Shogun Protocol
+              </h2>
+
+              <div class="space-y-6">
+                <!-- Registration Status -->
+                <div id="registrationStatus" class="p-4 bg-[#1A1A1A] rounded-xl border border-[#404040]" style="display: none;">
+                  <h3 class="text-[#FFFFFF] font-medium mb-2">Registration Status</h3>
+                  <div id="registrationStatusContent" class="text-[#A0A0A0] text-sm">
+                    Loading...
+                  </div>
+                </div>
+
+                <!-- Registration Info -->
+                <div class="p-4 bg-[#1A1A1A] rounded-xl border border-[#404040]">
+                  <h3 class="text-[#FFFFFF] font-medium mb-3">What is User Registration?</h3>
+                  <ul class="text-[#A0A0A0] text-sm space-y-2 mb-4">
+                    <li>• Register your encryption keys (pubkey/epub) on-chain</li>
+                    <li>• Enable encrypted data exchange with other users</li>
+                    <li>• Optional: Deposit stake for better griefing protection</li>
+                    <li>• Free to register - no stake required</li>
+                  </ul>
+                </div>
+
+                <!-- Keypair Status -->
+                <div id="keypairStatus" class="p-4 bg-[#1A1A1A] rounded-xl border border-[#404040]">
+                  <h3 class="text-[#FFFFFF] font-medium mb-3">Encryption Keys</h3>
+                  <div id="keypairStatusContent" class="text-[#A0A0A0] text-sm">
+                    <div class="flex items-center gap-2 mb-2">
+                      <div class="loading-spinner"></div>
+                      <span>Generating encryption keys...</span>
+                  </div>
+                    <p class="text-[#606060] text-xs">Keys are derived from your wallet signature using GunDB SEA</p>
+                </div>
+              </div>
+
+                <!-- Register Button -->
+                  <div>
+                  <button id="registerUserBtn" class="btn bg-[#42A5F5] hover:bg-[#1976D2] border-0 text-white w-full rounded-xl px-8 py-4 font-medium" onclick="registerUser()" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                    Register to Protocol
+                  </button>
+                  <p class="text-[#606060] text-xs mt-2 text-center">Registration is free and requires no stake</p>
+                  </div>
+
+                <!-- Optional Stake Section -->
+                <div class="p-4 bg-[#1A1A1A] rounded-xl border border-[#404040]">
+                  <h3 class="text-[#FFFFFF] font-medium mb-3">Optional: Deposit Stake</h3>
+                  <p class="text-[#A0A0A0] text-sm mb-4">Depositing stake improves your griefing ratio, making it cheaper for others to grief you if you misbehave.</p>
+                  
+                  <div class="space-y-3">
+                  <div>
+                      <label class="text-[#A0A0A0] text-sm mb-2 block">Stake Amount (USDC)</label>
+                      <input type="number" id="userStakeAmount" class="input-field" placeholder="0" min="0" step="0.001">
+                      <p class="text-[#606060] text-xs mt-1">Leave 0 if you don't want to stake</p>
+                  </div>
+                    
+                    <button id="depositStakeBtn" class="btn bg-[#404040] hover:bg-[#505050] border-0 text-white w-full rounded-xl" onclick="console.log('🔴 Button clicked! Disabled?', this.disabled); if(!this.disabled && typeof depositUserStake === 'function') { depositUserStake(); } else if(this.disabled) { console.warn('⚠️ Button is disabled'); alert('Button is disabled. Please make sure you are registered as a user first.'); } else { console.error('depositUserStake function not found!'); alert('Error: depositUserStake function not loaded. Please refresh the page.'); }" disabled>
+                      Deposit Stake
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Update Keys Section -->
+                <div class="p-4 bg-[#1A1A1A] rounded-xl border border-[#404040]">
+                  <h3 class="text-[#FFFFFF] font-medium mb-3">Update Encryption Keys</h3>
+                  <p class="text-[#A0A0A0] text-sm mb-4">If you need to update your encryption keys, click the button below to regenerate and update them.</p>
+                  
+                  <button id="updateKeysBtn" class="btn bg-[#404040] hover:bg-[#505050] border-0 text-white w-full rounded-xl" onclick="updateUserKeys()" disabled>
+                    Update Keys
+                  </button>
+                </div>
+
+                <!-- Registration Message -->
+                <div id="registerMessage" class="message"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

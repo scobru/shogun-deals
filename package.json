@@ -1,0 +1,26 @@
+{
+  "name": "shogun-deals",
+  "version": "1.0.0",
+  "description": "Shogun Protocol - Storage Deals Standalone App",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "shogun",
+    "storage",
+    "deals",
+    "ipfs",
+    "blockchain"
+  ],
+  "author": "Shogun Team",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "shogun-contracts": "^1.3.6"
+  }
+}
