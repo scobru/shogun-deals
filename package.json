@@ -21,6 +21,7 @@
     "vite": "^5.0.0"
   },
   "dependencies": {
-    "shogun-contracts": "^1.3.6"
+    "shogun-contracts": "^1.3.6",
+    "vercel": "^49.1.1"
   }
 }

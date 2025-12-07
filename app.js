@@ -351,9 +351,28 @@ async function loadAvailableRelays() {
               if (repData.success && repData.leaderboard) {
                 // Map relay addresses to reputation data
                 for (const relay of repData.leaderboard) {
-                  // Try to match by endpoint or host
-                  // Since we don't have direct mapping, we'll match by endpoint later
-                  reputationMap.set(relay.host, relay);
+                  // Normalize host - remove protocol to match by hostname
+                  let normalizedHost = relay.host;
+                  try {
+                    if (relay.host.includes('://')) {
+                      const url = new URL(relay.host);
+                      normalizedHost = url.hostname;
+                    }
+                  } catch (e) {
+                    // If URL parsing fails, use as-is
+                    normalizedHost = relay.host;
+                  }
+                  
+                  // If host already exists, prefer entry with real data (expectedPulses > 0)
+                  const existing = reputationMap.get(normalizedHost);
+                  if (existing) {
+                    // Prefer entry with actual data over one with all zeros
+                    if (relay.expectedPulses > 0 && existing.expectedPulses === 0) {
+                      reputationMap.set(normalizedHost, relay);
+                    }
+                  } else {
+                    reputationMap.set(normalizedHost, relay);
+                  }
                 }
               }
             }
@@ -384,7 +403,42 @@ async function loadAvailableRelays() {
           try {
             const url = new URL(endpoint);
             const host = url.hostname;
-            reputation = reputationMap.get(host);
+            const rawReputation = reputationMap.get(host);
+            
+            // Convert raw reputation from map to structured format
+            if (rawReputation) {
+              // Calculate uptimePercent
+              let uptimePercent = rawReputation.uptimePercent;
+              if (uptimePercent === null || uptimePercent === undefined) {
+                if (rawReputation.expectedPulses > 0 && rawReputation.receivedPulses !== undefined) {
+                  uptimePercent = (rawReputation.receivedPulses / rawReputation.expectedPulses) * 100;
+                } else {
+                  uptimePercent = null;
+                }
+              }
+              
+              // Calculate proofSuccessRate
+              let proofSuccessRate = rawReputation.proofSuccessRate;
+              if (proofSuccessRate === null || proofSuccessRate === undefined) {
+                if (rawReputation.proofsTotal > 0 && rawReputation.proofsSuccessful !== undefined) {
+                  proofSuccessRate = (rawReputation.proofsSuccessful / rawReputation.proofsTotal) * 100;
+                } else {
+                  proofSuccessRate = null;
+                }
+              }
+              
+              reputation = {
+                host: host,
+                reputation: {
+                  score: rawReputation.calculatedScore?.total || rawReputation.score || 50,
+                  tier: rawReputation.calculatedScore?.tier || rawReputation.tier || 'average',
+                },
+                metrics: {
+                  uptimePercent: uptimePercent,
+                  proofSuccessRate: proofSuccessRate,
+                },
+              };
+            }
             
             // If not found in map, try to get directly from relay
             if (!reputation) {
@@ -688,7 +742,28 @@ async function showRelayLeaderboard() {
               const repData = await repResponse.json();
               if (repData.success && repData.leaderboard) {
                 for (const relay of repData.leaderboard) {
-                  reputationMap.set(relay.host, relay);
+                  // Normalize host - remove protocol to match by hostname
+                  let normalizedHost = relay.host;
+                  try {
+                    if (relay.host.includes('://')) {
+                      const url = new URL(relay.host);
+                      normalizedHost = url.hostname;
+                    }
+                  } catch (e) {
+                    // If URL parsing fails, use as-is
+                    normalizedHost = relay.host;
+                  }
+                  
+                  // If host already exists, prefer entry with real data (expectedPulses > 0)
+                  const existing = reputationMap.get(normalizedHost);
+                  if (existing) {
+                    // Prefer entry with actual data over one with all zeros
+                    if (relay.expectedPulses > 0 && existing.expectedPulses === 0) {
+                      reputationMap.set(normalizedHost, relay);
+                    }
+                  } else {
+                    reputationMap.set(normalizedHost, relay);
+                  }
                 }
                 reputationEndpoint = endpoint;
                 break; // Got reputation data, no need to try more
@@ -715,7 +790,42 @@ async function showRelayLeaderboard() {
           try {
             const url = new URL(endpoint);
             const host = url.hostname;
-            reputation = reputationMap.get(host);
+            const rawReputation = reputationMap.get(host);
+            
+            // Convert raw reputation from map to structured format
+            if (rawReputation) {
+              // Calculate uptimePercent
+              let uptimePercent = rawReputation.uptimePercent;
+              if (uptimePercent === null || uptimePercent === undefined) {
+                if (rawReputation.expectedPulses > 0 && rawReputation.receivedPulses !== undefined) {
+                  uptimePercent = (rawReputation.receivedPulses / rawReputation.expectedPulses) * 100;
+                } else {
+                  uptimePercent = null;
+                }
+              }
+              
+              // Calculate proofSuccessRate
+              let proofSuccessRate = rawReputation.proofSuccessRate;
+              if (proofSuccessRate === null || proofSuccessRate === undefined) {
+                if (rawReputation.proofsTotal > 0 && rawReputation.proofsSuccessful !== undefined) {
+                  proofSuccessRate = (rawReputation.proofsSuccessful / rawReputation.proofsTotal) * 100;
+                } else {
+                  proofSuccessRate = null;
+                }
+              }
+              
+              reputation = {
+                host: host,
+                reputation: {
+                  score: rawReputation.calculatedScore?.total || rawReputation.score || 50,
+                  tier: rawReputation.calculatedScore?.tier || rawReputation.tier || 'average',
+                },
+                metrics: {
+                  uptimePercent: uptimePercent,
+                  proofSuccessRate: proofSuccessRate,
+                },
+              };
+            }
             
             // If not in map, try direct fetch
             if (!reputation && reputationEndpoint) {
@@ -2846,7 +2956,7 @@ async function deriveKeypairFromSignature(address, message, signature) {
   // Option 2: Try dynamic import (requires shogun-core to be built and accessible)
   try {
     // Adjust path based on your setup - could be relative or from a CDN
-    const shogunCore = await import('../shogun-core/dist/browser/shogun-core.js');
+    const shogunCore = await import('https://cdn.jsdelivr.net/npm/shogun-core@6.5.5/dist/browser/shogun-core.js');
     if (shogunCore.derive) {
       const keypair = await shogunCore.derive(address, salt, {
         includeP256: true,
