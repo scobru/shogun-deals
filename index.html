@@ -304,8 +304,12 @@
                       Upload to IPFS
                     </button>
                   </div>
-                  <div class="text-[#606060] text-xs mb-2">OR</div>
-                  <input type="text" id="dealCid" class="input-field" placeholder="Qm... (or upload file above)">
+                  <div class="flex gap-2 mb-2">
+                    <input type="text" id="dealCid" class="input-field flex-1" placeholder="Qm... (or upload file above)">
+                    <button type="button" onclick="copyToClipboard(document.getElementById('dealCid').value, 'CID copied!')" class="btn bg-[#404040] hover:bg-[#505050] border-0 text-white rounded-xl px-3" title="Copy CID">
+                      📋
+                    </button>
+                  </div>
                   <p class="text-[#606060] text-xs mt-1">Upload a file to IPFS or enter an existing IPFS CID</p>
                   
                   <!-- Encryption Option -->
@@ -326,17 +330,17 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label class="text-[#A0A0A0] text-sm mb-2 block">File Size (MB) *</label>
-                    <input type="number" id="dealSizeMB" class="input-field" placeholder="100" min="1">
+                    <input type="number" id="dealSizeMB" class="input-field" placeholder="100" min="1" oninput="debouncedCalculatePrice()">
                   </div>
                   <div>
                     <label class="text-[#A0A0A0] text-sm mb-2 block">Duration (Days) *</label>
-                    <input type="number" id="dealDuration" class="input-field" placeholder="30" min="7" value="30">
+                    <input type="number" id="dealDuration" class="input-field" placeholder="30" min="7" value="30" oninput="debouncedCalculatePrice()">
                   </div>
                 </div>
 
                 <div>
                   <label class="text-[#A0A0A0] text-sm mb-2 block">Tier</label>
-                  <select id="dealTier" class="input-field">
+                  <select id="dealTier" class="input-field" onchange="debouncedCalculatePrice()">
                     <option value="standard">Standard - Basic storage</option>
                     <option value="premium" selected>Premium - Erasure coding + 3x replication</option>
                     <option value="enterprise">Enterprise - 5x replication + SLA</option>

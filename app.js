@@ -1,7 +1,9 @@
 // Shogun Protocol - Storage Deals Standalone App
 // Uses Shogun Contracts SDK for contract interactions
+// Uses Shogun Relay SDK for relay API interactions
 
-import { ShogunSDK } from 'shogun-contracts/sdk';
+import { ShogunSDK } from 'shogun-contracts-sdk';
+import ShogunRelaySDK from 'shogun-relay-sdk';
 
 // Contract addresses - NOTE: Shogun Protocol contracts (RelayRegistry, StorageDealRegistry, etc.)
 // are managed by the SDK and retrieved via sdk.getRelayRegistry().getAddress() etc.
@@ -84,6 +86,172 @@ let usdc = null;
 let shogunCore = null;
 // GunDB keypair for encryption (derived from wallet signature)
 let gunKeypair = null;
+// Relay SDK instance (initialized per relay endpoint)
+let relaySDK = null;
+let currentRelayEndpoint = null;
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
+/**
+ * Initialize or get relay SDK instance for a given endpoint
+ * @param {string} endpoint - Relay endpoint URL
+ * @returns {ShogunRelaySDK} - Initialized relay SDK instance
+ */
+function getRelaySDK(endpoint) {
+  if (!endpoint) {
+    throw new Error('Relay endpoint is required');
+  }
+  
+  // If SDK exists and matches endpoint, reuse it
+  if (relaySDK && currentRelayEndpoint === endpoint) {
+    return relaySDK;
+  }
+  
+  // Create new SDK instance for this endpoint
+  relaySDK = new ShogunRelaySDK({
+    baseURL: endpoint,
+    timeout: 30000,
+  });
+  currentRelayEndpoint = endpoint;
+  
+  return relaySDK;
+}
+
+/**
+ * Cache for relay data to avoid repeated fetches
+ */
+const relayCache = {
+  data: null,
+  timestamp: 0,
+  TTL_MS: 60000, // 1 minute cache
+  isValid() {
+    return this.data && (Date.now() - this.timestamp) < this.TTL_MS;
+  },
+  set(data) {
+    this.data = data;
+    this.timestamp = Date.now();
+  },
+  get() {
+    return this.isValid() ? this.data : null;
+  },
+  clear() {
+    this.data = null;
+    this.timestamp = 0;
+  }
+};
+
+/**
+ * Show loading state on a button
+ * @param {string} buttonId - Button element ID
+ * @param {string} [loadingText] - Optional text to show during loading
+ * @returns {Function} - Function to restore the button
+ */
+function setButtonLoading(buttonId, loadingText = 'Loading...') {
+  const btn = document.getElementById(buttonId);
+  if (!btn) return () => {};
+  
+  const originalHTML = btn.innerHTML;
+  const originalDisabled = btn.disabled;
+  
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loading-spinner mr-2"></span>${loadingText}`;
+  
+  return () => {
+    btn.disabled = originalDisabled;
+    btn.innerHTML = originalHTML;
+  };
+}
+
+/**
+ * Copy text to clipboard and show feedback
+ * @param {string} text - Text to copy
+ * @param {string} [feedbackMessage] - Message to show on success
+ */
+async function copyToClipboard(text, feedbackMessage = 'Copied!') {
+  try {
+    await navigator.clipboard.writeText(text);
+    // Show toast notification
+    showToast(feedbackMessage, 'success');
+    return true;
+  } catch (err) {
+    console.error('Failed to copy:', err);
+    showToast('Failed to copy', 'error');
+    return false;
+  }
+}
+
+/**
+ * Show a toast notification
+ * @param {string} message - Message to show
+ * @param {string} [type] - 'success', 'error', 'info'
+ */
+function showToast(message, type = 'info') {
+  // Create toast container if it doesn't exist
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;';
+    document.body.appendChild(container);
+  }
+  
+  const toast = document.createElement('div');
+  const colors = {
+    success: 'background:#4CAF50;',
+    error: 'background:#F44336;',
+    info: 'background:#42A5F5;'
+  };
+  toast.style.cssText = `${colors[type] || colors.info}color:white;padding:12px 20px;border-radius:8px;margin-bottom:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);animation:slideIn 0.3s ease;`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  
+  // Auto-remove after 3 seconds
+  setTimeout(() => {
+    toast.style.animation = 'slideOut 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+/**
+ * Debounce function for input handlers
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in ms
+ */
+function debounce(func, wait = 300) {
+  let timeout;
+  return function (...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+
+// Note: truncateAddress is defined later in the file (line ~1644)
+
+/**
+ * Format file size for display
+ * @param {number} bytes - Size in bytes
+ * @returns {string} - Formatted size
+ */
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Add toast animation styles
+const toastStyles = document.createElement('style');
+toastStyles.textContent = `
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+`;
+document.head.appendChild(toastStyles);
+
+// Debounced price calculation
+const debouncedCalculatePrice = debounce(calculatePrice, 300);
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -344,35 +512,33 @@ async function loadAvailableRelays() {
         const endpoint = info.endpoint || '';
         if (endpoint) {
           try {
-            // Try to fetch reputation leaderboard from this relay
-            const repResponse = await fetch(`${endpoint}/api/v1/network/reputation?limit=50`);
-            if (repResponse.ok) {
-              const repData = await repResponse.json();
-              if (repData.success && repData.leaderboard) {
-                // Map relay addresses to reputation data
-                for (const relay of repData.leaderboard) {
-                  // Normalize host - remove protocol to match by hostname
-                  let normalizedHost = relay.host;
-                  try {
-                    if (relay.host.includes('://')) {
-                      const url = new URL(relay.host);
-                      normalizedHost = url.hostname;
-                    }
-                  } catch (e) {
-                    // If URL parsing fails, use as-is
-                    normalizedHost = relay.host;
+            // Use relay SDK to fetch reputation leaderboard
+            const sdk = getRelaySDK(endpoint);
+            const repData = await sdk.network.getReputationLeaderboard(undefined, 50);
+            if (repData.success && repData.leaderboard) {
+              // Map relay addresses to reputation data
+              for (const relay of repData.leaderboard) {
+                // Normalize host - remove protocol to match by hostname
+                let normalizedHost = relay.host;
+                try {
+                  if (relay.host.includes('://')) {
+                    const url = new URL(relay.host);
+                    normalizedHost = url.hostname;
                   }
-                  
-                  // If host already exists, prefer entry with real data (expectedPulses > 0)
-                  const existing = reputationMap.get(normalizedHost);
-                  if (existing) {
-                    // Prefer entry with actual data over one with all zeros
-                    if (relay.expectedPulses > 0 && existing.expectedPulses === 0) {
-                      reputationMap.set(normalizedHost, relay);
-                    }
-                  } else {
+                } catch (e) {
+                  // If URL parsing fails, use as-is
+                  normalizedHost = relay.host;
+                }
+                
+                // If host already exists, prefer entry with real data (expectedPulses > 0)
+                const existing = reputationMap.get(normalizedHost);
+                if (existing) {
+                  // Prefer entry with actual data over one with all zeros
+                  if (relay.expectedPulses > 0 && existing.expectedPulses === 0) {
                     reputationMap.set(normalizedHost, relay);
                   }
+                } else {
+                  reputationMap.set(normalizedHost, relay);
                 }
               }
             }
@@ -443,24 +609,22 @@ async function loadAvailableRelays() {
             // If not found in map, try to get directly from relay
             if (!reputation) {
               try {
-                const repResponse = await fetch(`${endpoint}/api/v1/network/reputation/${host}`);
-                if (repResponse.ok) {
-                  const repData = await repResponse.json();
-                  if (repData.success && repData.reputation) {
-                    reputation = {
-                      host: host,
-                      reputation: {
-                        score: repData.reputation.calculatedScore?.total || 50,
-                        tier: repData.reputation.calculatedScore?.tier || 'average',
-                      },
-                      metrics: {
-                        uptimePercent: repData.reputation.uptimePercent || 0,
-                        proofSuccessRate: repData.reputation.proofsTotal > 0
-                          ? (repData.reputation.proofsSuccessful / repData.reputation.proofsTotal) * 100
-                          : null,
-                      },
-                    };
-                  }
+                const sdk = getRelaySDK(endpoint);
+                const repData = await sdk.network.getReputation(host);
+                if (repData.success && repData.reputation) {
+                  reputation = {
+                    host: host,
+                    reputation: {
+                      score: repData.reputation.calculatedScore?.total || 50,
+                      tier: repData.reputation.calculatedScore?.tier || 'average',
+                    },
+                    metrics: {
+                      uptimePercent: repData.reputation.uptimePercent || 0,
+                      proofSuccessRate: repData.reputation.proofsTotal > 0
+                        ? (repData.reputation.proofsSuccessful / repData.reputation.proofsTotal) * 100
+                        : null,
+                    },
+                  };
                 }
               } catch (e) {
                 // Reputation not available for this relay
@@ -547,45 +711,41 @@ async function updateRelayInfo() {
       try {
         const url = new URL(relayEndpoint);
         const host = url.hostname;
-        const repResponse = await fetch(`${relayEndpoint}/api/v1/network/reputation/${host}`);
-        if (repResponse.ok) {
-          const repData = await repResponse.json();
-          if (repData.success && repData.reputation) {
-            // Calculate uptimePercent if not present
-            let uptimePercent = repData.reputation.uptimePercent;
-            if (uptimePercent === null || uptimePercent === undefined) {
-              if (repData.reputation.expectedPulses > 0 && repData.reputation.receivedPulses !== undefined) {
-                uptimePercent = (repData.reputation.receivedPulses / repData.reputation.expectedPulses) * 100;
-              } else {
-                uptimePercent = null;
-              }
+        const sdk = getRelaySDK(relayEndpoint);
+        const repData = await sdk.network.getReputation(host);
+        if (repData.success && repData.reputation) {
+          // Calculate uptimePercent if not present
+          let uptimePercent = repData.reputation.uptimePercent;
+          if (uptimePercent === null || uptimePercent === undefined) {
+            if (repData.reputation.expectedPulses > 0 && repData.reputation.receivedPulses !== undefined) {
+              uptimePercent = (repData.reputation.receivedPulses / repData.reputation.expectedPulses) * 100;
+            } else {
+              uptimePercent = null;
             }
-            
-            // Calculate proofSuccessRate if not present
-            let proofSuccessRate = repData.reputation.proofSuccessRate;
-            if (proofSuccessRate === null || proofSuccessRate === undefined) {
-              if (repData.reputation.proofsTotal > 0 && repData.reputation.proofsSuccessful !== undefined) {
-                proofSuccessRate = (repData.reputation.proofsSuccessful / repData.reputation.proofsTotal) * 100;
-              } else {
-                proofSuccessRate = null;
-              }
-            }
-            
-            reputation = {
-              host: host,
-              reputation: {
-                score: repData.reputation.calculatedScore?.total || 50,
-                tier: repData.reputation.calculatedScore?.tier || 'average',
-                recommended: (repData.reputation.calculatedScore?.total || 0) >= 75,
-              },
-              metrics: {
-                uptimePercent: uptimePercent,
-                proofSuccessRate: proofSuccessRate,
-              },
-            };
           }
-        } else {
-          console.warn(`Failed to fetch reputation for ${host}: ${repResponse.status} ${repResponse.statusText}`);
+          
+          // Calculate proofSuccessRate if not present
+          let proofSuccessRate = repData.reputation.proofSuccessRate;
+          if (proofSuccessRate === null || proofSuccessRate === undefined) {
+            if (repData.reputation.proofsTotal > 0 && repData.reputation.proofsSuccessful !== undefined) {
+              proofSuccessRate = (repData.reputation.proofsSuccessful / repData.reputation.proofsTotal) * 100;
+            } else {
+              proofSuccessRate = null;
+            }
+          }
+          
+          reputation = {
+            host: host,
+            reputation: {
+              score: repData.reputation.calculatedScore?.total || 50,
+              tier: repData.reputation.calculatedScore?.tier || 'average',
+              recommended: (repData.reputation.calculatedScore?.total || 0) >= 75,
+            },
+            metrics: {
+              uptimePercent: uptimePercent,
+              proofSuccessRate: proofSuccessRate,
+            },
+          };
         }
       } catch (e) {
         console.warn('Could not fetch reputation:', e);
@@ -737,37 +897,35 @@ async function showRelayLeaderboard() {
         const endpoint = info.endpoint || '';
         if (endpoint) {
           try {
-            const repResponse = await fetch(`${endpoint}/api/v1/network/reputation?limit=50`);
-            if (repResponse.ok) {
-              const repData = await repResponse.json();
-              if (repData.success && repData.leaderboard) {
-                for (const relay of repData.leaderboard) {
-                  // Normalize host - remove protocol to match by hostname
-                  let normalizedHost = relay.host;
-                  try {
-                    if (relay.host.includes('://')) {
-                      const url = new URL(relay.host);
-                      normalizedHost = url.hostname;
-                    }
-                  } catch (e) {
-                    // If URL parsing fails, use as-is
-                    normalizedHost = relay.host;
+            const sdk = getRelaySDK(endpoint);
+            const repData = await sdk.network.getReputationLeaderboard(undefined, 50);
+            if (repData.success && repData.leaderboard) {
+              for (const relay of repData.leaderboard) {
+                // Normalize host - remove protocol to match by hostname
+                let normalizedHost = relay.host;
+                try {
+                  if (relay.host.includes('://')) {
+                    const url = new URL(relay.host);
+                    normalizedHost = url.hostname;
                   }
-                  
-                  // If host already exists, prefer entry with real data (expectedPulses > 0)
-                  const existing = reputationMap.get(normalizedHost);
-                  if (existing) {
-                    // Prefer entry with actual data over one with all zeros
-                    if (relay.expectedPulses > 0 && existing.expectedPulses === 0) {
-                      reputationMap.set(normalizedHost, relay);
-                    }
-                  } else {
+                } catch (e) {
+                  // If URL parsing fails, use as-is
+                  normalizedHost = relay.host;
+                }
+                
+                // If host already exists, prefer entry with real data (expectedPulses > 0)
+                const existing = reputationMap.get(normalizedHost);
+                if (existing) {
+                  // Prefer entry with actual data over one with all zeros
+                  if (relay.expectedPulses > 0 && existing.expectedPulses === 0) {
                     reputationMap.set(normalizedHost, relay);
                   }
+                } else {
+                  reputationMap.set(normalizedHost, relay);
                 }
-                reputationEndpoint = endpoint;
-                break; // Got reputation data, no need to try more
               }
+              reputationEndpoint = endpoint;
+              break; // Got reputation data, no need to try more
             }
           } catch (e) {
             continue;
@@ -830,44 +988,40 @@ async function showRelayLeaderboard() {
             // If not in map, try direct fetch
             if (!reputation && reputationEndpoint) {
               try {
-                const repResponse = await fetch(`${reputationEndpoint}/api/v1/network/reputation/${host}`);
-                if (repResponse.ok) {
-                  const repData = await repResponse.json();
-                  if (repData.success && repData.reputation) {
-                    // Calculate uptimePercent if not present
-                    let uptimePercent = repData.reputation.uptimePercent;
-                    if (uptimePercent === null || uptimePercent === undefined) {
-                      if (repData.reputation.expectedPulses > 0 && repData.reputation.receivedPulses !== undefined) {
-                        uptimePercent = (repData.reputation.receivedPulses / repData.reputation.expectedPulses) * 100;
-                      } else {
-                        uptimePercent = null;
-                      }
+                const sdk = getRelaySDK(reputationEndpoint);
+                const repData = await sdk.network.getReputation(host);
+                if (repData.success && repData.reputation) {
+                  // Calculate uptimePercent if not present
+                  let uptimePercent = repData.reputation.uptimePercent;
+                  if (uptimePercent === null || uptimePercent === undefined) {
+                    if (repData.reputation.expectedPulses > 0 && repData.reputation.receivedPulses !== undefined) {
+                      uptimePercent = (repData.reputation.receivedPulses / repData.reputation.expectedPulses) * 100;
+                    } else {
+                      uptimePercent = null;
                     }
-                    
-                    // Calculate proofSuccessRate if not present
-                    let proofSuccessRate = repData.reputation.proofSuccessRate;
-                    if (proofSuccessRate === null || proofSuccessRate === undefined) {
-                      if (repData.reputation.proofsTotal > 0 && repData.reputation.proofsSuccessful !== undefined) {
-                        proofSuccessRate = (repData.reputation.proofsSuccessful / repData.reputation.proofsTotal) * 100;
-                      } else {
-                        proofSuccessRate = null;
-                      }
-                    }
-                    
-                    reputation = {
-                      host: host,
-                      reputation: {
-                        score: repData.reputation.calculatedScore?.total || 50,
-                        tier: repData.reputation.calculatedScore?.tier || 'average',
-                      },
-                      metrics: {
-                        uptimePercent: uptimePercent,
-                        proofSuccessRate: proofSuccessRate,
-                      },
-                    };
                   }
-                } else {
-                  console.warn(`Failed to fetch reputation for ${host}: ${repResponse.status} ${repResponse.statusText}`);
+                  
+                  // Calculate proofSuccessRate if not present
+                  let proofSuccessRate = repData.reputation.proofSuccessRate;
+                  if (proofSuccessRate === null || proofSuccessRate === undefined) {
+                    if (repData.reputation.proofsTotal > 0 && repData.reputation.proofsSuccessful !== undefined) {
+                      proofSuccessRate = (repData.reputation.proofsSuccessful / repData.reputation.proofsTotal) * 100;
+                    } else {
+                      proofSuccessRate = null;
+                    }
+                  }
+                  
+                  reputation = {
+                    host: host,
+                    reputation: {
+                      score: repData.reputation.calculatedScore?.total || 50,
+                      tier: repData.reputation.calculatedScore?.tier || 'average',
+                    },
+                    metrics: {
+                      uptimePercent: uptimePercent,
+                      proofSuccessRate: proofSuccessRate,
+                    },
+                  };
                 }
               } catch (e) {
                 console.warn(`Error fetching reputation for ${host}:`, e);
@@ -974,12 +1128,8 @@ function selectRelayFromLeaderboard(relayAddress) {
  */
 async function loadRelayPricing(relayEndpoint) {
   try {
-    const response = await fetch(`${relayEndpoint}/api/v1/deals/pricing`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch pricing: ${response.status}`);
-    }
-    
-    const data = await response.json();
+    const sdk = getRelaySDK(relayEndpoint);
+    const data = await sdk.deals.getPricing();
     if (data.success && data.tiers) {
       // Update relay pricing with data from relay
       relayPricing = {
@@ -1123,39 +1273,27 @@ async function createDeal() {
     // Step 1: Create deal via relay API
     showMessage('createMessage', 'info', 'Creating deal with relay...');
     
-    let createResponse;
+    let createData;
     try {
-      createResponse = await fetch(`${relayEndpoint}/api/v1/deals/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cid,
-          clientAddress: connectedAddress,
-          sizeMB,
-          durationDays: duration,
-          tier,
-          relayAddress: relayAddress, // The on-chain relay address
-        }),
-        signal: AbortSignal.timeout(30000), // 30 second timeout
+      const sdk = getRelaySDK(relayEndpoint);
+      createData = await sdk.deals.createDeal({
+        cid,
+        clientAddress: connectedAddress,
+        sizeMB,
+        durationDays: duration,
+        tier,
+        relayAddress: relayAddress, // The on-chain relay address
       });
     } catch (fetchError) {
-      if (fetchError.name === 'AbortError') {
+      if (fetchError.code === 'ECONNABORTED' || fetchError.message?.includes('timeout')) {
         throw new Error('Request timed out. The relay may be slow or unavailable. Please try again.');
+      }
+      if (fetchError.response?.data?.error) {
+        throw new Error(fetchError.response.data.error);
       }
       throw Object.assign(new Error('Network error connecting to relay'), { code: 'NETWORK_ERROR', originalError: fetchError });
     }
 
-    if (!createResponse.ok) {
-      let errorData;
-      try {
-        errorData = await createResponse.json();
-      } catch {
-        throw new Error(`Relay returned error status ${createResponse.status}: ${createResponse.statusText}`);
-      }
-      throw new Error(errorData.error || `Failed to create deal with relay (status ${createResponse.status})`);
-    }
-
-    const createData = await createResponse.json();
     if (!createData.success) {
       throw new Error(createData.error || 'Failed to create deal');
     }
@@ -1189,34 +1327,20 @@ async function createDeal() {
     // Relay will call registerDeal() which uses safeTransferFrom to pull payment from client
     showMessage('createMessage', 'info', 'Notifying relay to register deal on-chain...');
     
-    let activateResponse;
+    let activateData;
     try {
-      activateResponse = await fetch(`${relayEndpoint}/api/v1/deals/${dealId}/activate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          // No paymentTxHash needed - payment is handled via approval + registerDeal
-        }),
-        signal: AbortSignal.timeout(60000), // 60 second timeout for on-chain operations
-      });
+      const sdk = getRelaySDK(relayEndpoint);
+      // No payment needed - payment is handled via approval + registerDeal
+      activateData = await sdk.deals.activateDeal(dealId, {});
     } catch (fetchError) {
-      if (fetchError.name === 'AbortError') {
+      if (fetchError.code === 'ECONNABORTED' || fetchError.message?.includes('timeout')) {
         throw new Error('Activation request timed out. The deal may still be processing. Please check your deals list.');
+      }
+      if (fetchError.response?.data?.error) {
+        throw new Error(fetchError.response.data.error);
       }
       throw Object.assign(new Error('Network error during deal activation'), { code: 'NETWORK_ERROR', originalError: fetchError });
     }
-
-    if (!activateResponse.ok) {
-      let errorData;
-      try {
-        errorData = await activateResponse.json();
-      } catch {
-        throw new Error(`Relay returned error status ${activateResponse.status}: ${activateResponse.statusText}`);
-      }
-      throw new Error(errorData.error || `Failed to activate deal (status ${activateResponse.status})`);
-    }
-
-    const activateData = await activateResponse.json();
     if (!activateData.success) {
       throw new Error(activateData.error || 'Failed to activate deal');
     }
@@ -1894,13 +2018,10 @@ async function verifyDeal(dealId) {
 
     // Use relay's verify endpoint with deal ID directly (no onchain_ prefix needed)
     // The endpoint will handle on-chain lookup automatically
-    // Pass clientAddress and CID as query parameters to help with deal lookup
-    const verifyUrl = `${endpoint}/api/v1/deals/${normalizedDealId}/verify?clientAddress=${encodeURIComponent(connectedAddress)}&cid=${encodeURIComponent(deal.cid)}`;
-    console.log(`🔍 Verifying deal at: ${verifyUrl}`);
-    const verifyResponse = await fetch(verifyUrl);
-    
-    if (verifyResponse.ok) {
-      const verifyData = await verifyResponse.json();
+    console.log(`🔍 Verifying deal ${normalizedDealId} at ${endpoint}`);
+    try {
+      const sdk = getRelaySDK(endpoint);
+      const verifyData = await sdk.deals.verifyDeal(normalizedDealId, connectedAddress);
       console.log('📋 Verification response:', verifyData);
       
       if (verifyData.success) {
@@ -1942,63 +2063,59 @@ async function verifyDeal(dealId) {
         }
         return;
       }
-    } else if (verifyResponse.status === 404) {
-      // Deal not found in relay - try alternative verification via public gateways
-      showMessage('createMessage', 'warning', 
-        `⚠️ Deal not found in relay's database. Trying public IPFS gateways...`
-      );
-      
-      // Fallback: Try direct IPFS gateway check
-      try {
-        // Try multiple gateways
-        const gateways = [
-          `https://ipfs.io/ipfs/${deal.cid}`,
-          `https://gateway.pinata.cloud/ipfs/${deal.cid}`,
-          `https://cloudflare-ipfs.com/ipfs/${deal.cid}`,
-        ];
-        
-        let found = false;
-        for (const gateway of gateways) {
-          try {
-            const gatewayResponse = await fetch(gateway, {
-              method: 'HEAD',
-              mode: 'no-cors',
-            });
-            // If no error, assume it's available (no-cors doesn't give status)
-            found = true;
-            break;
-          } catch (e) {
-            continue;
-          }
-        }
-        
-        if (found) {
-          showMessage('createMessage', 'info', 
-            `ℹ️ CID ${deal.cid} appears to be available on public IPFS gateways, but relay verification failed. Consider reporting this issue.`
-          );
-        } else {
-          showMessage('createMessage', 'error', 
-            `❌ Verification failed: CID ${deal.cid} not found on relay or public gateways. Consider reporting this issue.`
-          );
-        }
-      } catch (e) {
-        showMessage('createMessage', 'error', 
-          `❌ Verification failed: ${e.message}. Consider reporting this issue.`
+    } catch (error) {
+      // Handle 404 or other errors
+      if (error.response?.status === 404) {
+        // Deal not found in relay - try alternative verification via public gateways
+        showMessage('createMessage', 'warning', 
+          `⚠️ Deal not found in relay's database. Trying public IPFS gateways...`
         );
+        
+        // Fallback: Try direct IPFS gateway check
+        try {
+          // Try multiple gateways
+          const gateways = [
+            `https://ipfs.io/ipfs/${deal.cid}`,
+            `https://gateway.pinata.cloud/ipfs/${deal.cid}`,
+            `https://cloudflare-ipfs.com/ipfs/${deal.cid}`,
+          ];
+          
+          let found = false;
+          for (const gateway of gateways) {
+            try {
+              const gatewayResponse = await fetch(gateway, {
+                method: 'HEAD',
+                mode: 'no-cors',
+              });
+              // If no error, assume it's available (no-cors doesn't give status)
+              found = true;
+              break;
+            } catch (e) {
+              continue;
+            }
+          }
+          
+          if (found) {
+            showMessage('createMessage', 'info', 
+              `ℹ️ CID ${deal.cid} appears to be available on public IPFS gateways, but relay verification failed. Consider reporting this issue.`
+            );
+          } else {
+            showMessage('createMessage', 'error', 
+              `❌ Verification failed: CID ${deal.cid} not found on relay or public gateways. Consider reporting this issue.`
+            );
+          }
+        } catch (e) {
+          showMessage('createMessage', 'error', 
+            `❌ Verification failed: ${e.message}. Consider reporting this issue.`
+          );
+        }
+        return;
+      } else {
+        // Other errors
+        const errorMessage = error.response?.data?.error || error.message || 'Unknown verification error';
+        showMessage('createMessage', 'error', `❌ Verification failed: ${errorMessage}`);
+        console.error('Verification error:', error);
       }
-    } else {
-      const errorData = await verifyResponse.json().catch(() => ({}));
-      throw new Error(errorData.error || `Verification failed: ${verifyResponse.status}`);
-    }
-  } catch (error) {
-    console.error('Verification error:', error);
-    const message = `Verification failed: ${error.message}`;
-    alert(message);
-    const verifyBtn = event?.target || document.querySelector(`button[onclick*="verifyDeal('${dealId}')"]`);
-    if (verifyBtn) {
-      verifyBtn.disabled = false;
-      verifyBtn.textContent = 'Verify';
-      verifyBtn.style.backgroundColor = '';
     }
   } finally {
     // Reset button state if not already reset
@@ -2032,7 +2149,12 @@ async function showGriefModal(dealId, cid, relayAddress) {
     // Get griefing ratios
     const ratios = await getGriefingRatios();
     const griefingRatio = deal.clientStake > 0 ? ratios.staked : ratios.default;
-    const griefingRatioPercent = (Number(griefingRatio) / 100).toFixed(2); // Convert basis points to percentage
+    // Convert basis points to percentage for display
+    // Standard basis points: 1 basis point = 0.01%, so 500 = 5%, 5000 = 50%
+    // The contract uses: cost = (slashAmount * griefingRatio) / 10000
+    // So if griefingRatio = 500: cost = slashAmount * 0.05 (5%)
+    // If griefingRatio = 5000: cost = slashAmount * 0.5 (50%)
+    const griefingRatioPercent = (Number(griefingRatio) / 100).toFixed(2);
 
     // Create modal if it doesn't exist
     let modal = document.getElementById('griefModal');
@@ -2341,10 +2463,29 @@ async function getGriefingRatios() {
     throw new Error('Relay registry not initialized');
   }
   
+  // Access contract directly via getContract() to call view functions
+  const contract = relayRegistry.getContract();
+  
   const [defaultRatio, stakedRatio] = await Promise.all([
-    relayRegistry.defaultGriefingRatio(),
-    relayRegistry.stakedClientGriefingRatio(),
+    contract.defaultGriefingRatio(),
+    contract.stakedClientGriefingRatio(),
   ]);
+  
+  // Log for debugging - check actual values from contract
+  const defaultNum = Number(defaultRatio);
+  const stakedNum = Number(stakedRatio);
+  console.log('Griefing ratios from contract:', {
+    default: defaultRatio.toString(),
+    staked: stakedRatio.toString(),
+    defaultAsNumber: defaultNum,
+    stakedAsNumber: stakedNum,
+    // Standard basis points conversion (divide by 100)
+    defaultPercentStandard: (defaultNum / 100).toFixed(2) + '%',
+    stakedPercentStandard: (stakedNum / 100).toFixed(2) + '%',
+    // Alternative: if 500 should be 50%, divide by 10
+    defaultPercentAlt: (defaultNum / 10).toFixed(2) + '%',
+    stakedPercentAlt: (stakedNum / 10).toFixed(2) + '%'
+  });
   
   return {
     default: Number(defaultRatio),
@@ -3777,10 +3918,15 @@ console.log('✅ depositUserStake exported to window:', typeof window.depositUse
 window.updateUserKeys = updateUserKeys;
 window.subscribeToRelay = subscribeToRelay;
 window.verifyDeal = verifyDeal;
+window.showGriefModal = showGriefModal;
+window.closeGriefModal = closeGriefModal;
+window.updateGriefingCost = updateGriefingCost;
+window.submitGrief = submitGrief;
 window.viewDealFile = viewDealFile;
 window.closeGriefModal = closeGriefModal;
 window.submitGrief = submitGrief;
 window.showGriefModal = showGriefModal;
+window.updateGriefingCost = updateGriefingCost;
 window.completeDeal = completeDeal;
 window.closeRelayLeaderboard = closeRelayLeaderboard;
 window.selectRelayFromLeaderboard = selectRelayFromLeaderboard;
@@ -3788,3 +3934,11 @@ window.downloadDealFile = downloadDealFile;
 window.viewSubscriptionFile = viewSubscriptionFile;
 window.downloadSubscriptionFile = downloadSubscriptionFile;
 window.deleteSubscriptionFile = deleteSubscriptionFile;
+
+// Export new utility functions
+window.copyToClipboard = copyToClipboard;
+window.showToast = showToast;
+window.debouncedCalculatePrice = debouncedCalculatePrice;
+window.setButtonLoading = setButtonLoading;
+window.formatFileSize = formatFileSize;
+
