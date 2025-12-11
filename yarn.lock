@@ -2468,17 +2468,17 @@ shebang-regex@^3.0.0:
   resolved "https://registry.yarnpkg.com/shebang-regex/-/shebang-regex-3.0.0.tgz#ae16f1644d873ecad843b0307b143362d4c42172"
   integrity sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==
 
-shogun-contracts-sdk@^1.0.4:
-  version "1.0.4"
-  resolved "https://registry.yarnpkg.com/shogun-contracts-sdk/-/shogun-contracts-sdk-1.0.4.tgz#e978ce3838b6fcec7f695d3050ce0f688073fd95"
-  integrity sha512-mnrL8JEPwBk/VxjnKVLhiCN9ngh1P/V6imxpoPNJbc8hPZQhIl9x6ZM1uMEVqfNiKTe9vFAvuKLeoenaQ7xo1A==
+shogun-contracts-sdk@^1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/shogun-contracts-sdk/-/shogun-contracts-sdk-1.1.1.tgz#088c3eb1065dd4313b55af0f1970bcb6889ed463"
+  integrity sha512-q/oOzC/Hz3VANAI0hO1jq6kNGyIXMMQ3vL/4El48qeuFKBc0D/9O5PUyxUsD+pQesGTeYkJBDyTK+GDw1NxjiA==
   dependencies:
     ethers "^6.4.0"
 
-shogun-relay-sdk@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/shogun-relay-sdk/-/shogun-relay-sdk-1.0.0.tgz#5cb102419489a7f7b3188dae3fa733ca1aa99f02"
-  integrity sha512-swYaNMzD+cOU9KhdJyaEJu6+7wauFCOZ8kD18M1ufbg0/jYVjNUkGQ4XR3IuN/sItwn4Ebp9n/aRu5drIuTPOA==
+shogun-relay-sdk@^1.1.2:
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/shogun-relay-sdk/-/shogun-relay-sdk-1.1.2.tgz#c11bc083c4b8a5b163e1768aedcd2d3334c5a8ab"
+  integrity sha512-rK4U0KWk/d6SMBeIjuir45hskmpcjx5uzrKEyUxrz64vjelzSBoE57yM8lDyjvcWbuAp8fS7hnBB0s80/aRMDw==
   dependencies:
     axios "^1.6.0"
     form-data "^4.0.0"
