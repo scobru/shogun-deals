@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "shogun-contracts-sdk": "^1.1.1",
-    "shogun-relay-sdk": "^1.1.2",
+    "shogun-relay-sdk": "^1.1.5",
     "vercel": "^49.1.1"
   }
 }

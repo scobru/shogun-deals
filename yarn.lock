@@ -2475,10 +2475,10 @@ shogun-contracts-sdk@^1.1.1:
   dependencies:
     ethers "^6.4.0"
 
-shogun-relay-sdk@^1.1.2:
-  version "1.1.2"
-  resolved "https://registry.yarnpkg.com/shogun-relay-sdk/-/shogun-relay-sdk-1.1.2.tgz#c11bc083c4b8a5b163e1768aedcd2d3334c5a8ab"
-  integrity sha512-rK4U0KWk/d6SMBeIjuir45hskmpcjx5uzrKEyUxrz64vjelzSBoE57yM8lDyjvcWbuAp8fS7hnBB0s80/aRMDw==
+shogun-relay-sdk@^1.1.5:
+  version "1.1.5"
+  resolved "https://registry.yarnpkg.com/shogun-relay-sdk/-/shogun-relay-sdk-1.1.5.tgz#ad4a26a33c995e9fc407e692779c3b75431e033b"
+  integrity sha512-y8d5LBl+SoTNxMM/FSm/VYKlcEyhIF00c4tiY3npbV8JaU31XXh/7MUTpRe+1goFy7QaJDrQimiq/3OtDahTJg==
   dependencies:
     axios "^1.6.0"
     form-data "^4.0.0"
