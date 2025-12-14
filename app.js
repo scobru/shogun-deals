@@ -1308,6 +1308,12 @@ async function createDeal() {
     const storageDealRegistryAddress = storageDealRegistry.getAddress();
     const amountToApprove = BigInt(paymentInfo.amountAtomic);
     
+    console.log('🔍 Approval Check Details:');
+    console.log('  - StorageDealRegistry Address:', storageDealRegistryAddress);
+    console.log('  - Client Address:', connectedAddress);
+    console.log('  - Amount to approve (atomic):', amountToApprove.toString());
+    console.log('  - Amount to approve (USDC):', ethers.formatUnits(amountToApprove, 6));
+    
     // Check balance
     const balance = await usdc.balanceOf(connectedAddress);
     if (balance < amountToApprove) {
@@ -1315,12 +1321,38 @@ async function createDeal() {
     }
 
     // Check and approve if needed
-    const allowance = await usdc.allowance(connectedAddress, storageDealRegistryAddress);
+    let allowance = await usdc.allowance(connectedAddress, storageDealRegistryAddress);
+    console.log('  - Current allowance (atomic):', allowance.toString());
+    console.log('  - Current allowance (USDC):', ethers.formatUnits(allowance, 6));
+    console.log('  - Required amount (USDC):', ethers.formatUnits(amountToApprove, 6));
+    
     if (allowance < amountToApprove) {
       showMessage('createMessage', 'info', 'Approving USDC for StorageDealRegistry contract...');
       const approveTx = await usdc.approve(storageDealRegistryAddress, amountToApprove * 2n); // Approve 2x for safety
-      await approveTx.wait();
-      showMessage('createMessage', 'success', 'USDC approved. Relay will register deal on-chain.');
+      const receipt = await approveTx.wait();
+      console.log('Approval transaction confirmed:', receipt.hash);
+      
+      // Wait for state propagation - some RPC nodes may lag behind
+      showMessage('createMessage', 'info', 'Waiting for approval to propagate...');
+      
+      // Retry checking allowance with exponential backoff
+      let retries = 5;
+      let newAllowance = allowance;
+      while (retries > 0 && newAllowance < amountToApprove) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        newAllowance = await usdc.allowance(connectedAddress, storageDealRegistryAddress);
+        console.log(`Retry ${6 - retries}: Allowance check = ${ethers.formatUnits(newAllowance, 6)} USDC`);
+        retries--;
+      }
+      
+      if (newAllowance < amountToApprove) {
+        throw new Error(`Approval transaction confirmed but allowance not updated. Current: ${ethers.formatUnits(newAllowance, 6)}, Need: ${ethers.formatUnits(amountToApprove, 6)}. Please wait a moment and try again.`);
+      }
+      
+      console.log('✅ Approval verified:', ethers.formatUnits(newAllowance, 6), 'USDC');
+      showMessage('createMessage', 'success', `USDC approved: ${ethers.formatUnits(newAllowance, 6)} USDC. Relay will register deal on-chain.`);
+    } else {
+      console.log('✅ Sufficient allowance already exists:', ethers.formatUnits(allowance, 6), 'USDC');
     }
 
     // Step 3: Notify relay to activate deal
@@ -1593,16 +1625,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 500);
 });
 
-// Tier card selection
-document.querySelectorAll('.tier-card').forEach(card => {
-  card.addEventListener('click', () => {
+// Tier card selection - use event delegation to work with dynamically added cards
+document.addEventListener('click', (e) => {
+  // Only handle clicks on tier-card, but NOT on subscribe buttons
+  if (e.target.closest('.subscribe-tier-btn')) {
+    // Don't handle tier-card selection if clicking subscribe button
+    return;
+  }
+  
+  const card = e.target.closest('.tier-card');
+  if (card && !card.closest('#tiersList')) {
+    // Only handle tier-card clicks outside of subscription tiers list
+    // (subscription tiers have their own click handling)
     document.querySelectorAll('.tier-card').forEach(c => c.classList.remove('selected'));
     card.classList.add('selected');
     const tier = card.dataset.tier;
     if (document.getElementById('calcTier')) document.getElementById('calcTier').value = tier;
     if (document.getElementById('dealTier')) document.getElementById('dealTier').value = tier;
     calculatePrice();
-  });
+  }
 });
 
 // Helper functions
@@ -2540,10 +2581,18 @@ async function loadSubscriptionRelays() {
 
 // Load subscription tiers for selected relay
 async function loadSubscriptionTiers() {
+  console.log('📋 loadSubscriptionTiers called');
   const relaySelect = document.getElementById('subscriptionRelaySelect');
   const selectedRelay = relaySelect.value;
+  console.log('📋 Selected relay:', selectedRelay);
   const tiersDiv = document.getElementById('subscriptionTiers');
   const tiersList = document.getElementById('tiersList');
+  
+  if (!selectedRelay) {
+    console.warn('⚠️ No relay selected');
+    tiersDiv.style.display = 'none';
+    return;
+  }
 
   if (!selectedRelay) {
     tiersDiv.style.display = 'none';
@@ -2572,8 +2621,16 @@ async function loadSubscriptionTiers() {
       throw new Error(data.error || 'No tiers available');
     }
 
-    tiersList.innerHTML = data.tiers.map(tier => `
-      <div class="tier-card ${tier.available ? '' : 'opacity-50'}" data-tier="${tier.id}">
+    // Store reference to parent before clearing
+    const tiersListParent = tiersList.parentNode;
+    
+    // Clear any existing event listeners by replacing the element
+    const newTiersList = document.createElement('div');
+    newTiersList.id = 'tiersList';
+    newTiersList.className = tiersList.className;
+    
+    newTiersList.innerHTML = data.tiers.map(tier => `
+      <div class="tier-card subscription-tier-card ${tier.available ? '' : 'opacity-50'}" data-tier="${tier.id}">
         <div class="flex justify-between items-start mb-4">
           <h3 class="text-lg font-semibold text-[#FFFFFF] capitalize">${tier.id}</h3>
           ${tier.available ? '' : '<span class="text-[#F44336] text-xs">Unavailable</span>'}
@@ -2587,8 +2644,8 @@ async function loadSubscriptionTiers() {
           <li>Auto-renewal available</li>
         </ul>
         ${tier.available ? `
-          <button onclick="subscribeToRelay('${tier.id}', '${endpoint}')" 
-                  class="btn bg-[#42A5F5] hover:bg-[#1976D2] border-0 text-white w-full">
+          <button data-subscribe-tier="${tier.id}" data-subscribe-endpoint="${endpoint}" 
+                  class="subscribe-tier-btn btn bg-[#42A5F5] hover:bg-[#1976D2] border-0 text-white w-full">
             Subscribe
           </button>
         ` : `
@@ -2599,6 +2656,156 @@ async function loadSubscriptionTiers() {
       </div>
     `).join('');
 
+    // Replace old element with new one BEFORE adding event listeners
+    tiersListParent.replaceChild(newTiersList, tiersList);
+
+    // Add event listeners to subscribe buttons using event delegation
+    const subscribeButtons = newTiersList.querySelectorAll('.subscribe-tier-btn');
+    console.log(`🔘 Found ${subscribeButtons.length} subscribe buttons`);
+    
+    subscribeButtons.forEach((button, index) => {
+      console.log(`🔘 Setting up listener for button ${index}:`, {
+        tier: button.getAttribute('data-subscribe-tier'),
+        endpoint: button.getAttribute('data-subscribe-endpoint')
+      });
+      
+      // Add multiple event listeners to catch the click
+      button.addEventListener('click', (e) => {
+        console.log('🔔 DIRECT Click event fired on button!', e, button);
+        e.preventDefault();
+        e.stopPropagation(); // Prevent event bubbling
+        e.stopImmediatePropagation(); // Prevent other handlers
+        return false;
+        
+        const tier = button.getAttribute('data-subscribe-tier');
+        const endpoint = button.getAttribute('data-subscribe-endpoint');
+        console.log('🔔 Subscribe button clicked:', { tier, endpoint, button });
+        
+        if (!tier || !endpoint) {
+          console.error('❌ Missing tier or endpoint:', { tier, endpoint });
+          showMessage('subscriptionMessage', 'error', 'Missing tier or endpoint data');
+          return;
+        }
+        
+        if (typeof subscribeToRelay === 'function') {
+          console.log('✅ Calling subscribeToRelay function...');
+          subscribeToRelay(tier, endpoint);
+        } else {
+          console.error('❌ subscribeToRelay function not found!', typeof subscribeToRelay);
+          showMessage('subscriptionMessage', 'error', 'Error: subscribeToRelay function not loaded. Please refresh the page.');
+        }
+      }, true); // Use capture phase to catch event early
+      
+      // Also add mousedown as backup
+      button.addEventListener('mousedown', (e) => {
+        console.log('🔔 MouseDown on button!', e);
+        e.preventDefault();
+        e.stopPropagation();
+      }, true);
+      
+      // Also add mouseup as backup
+      button.addEventListener('mouseup', (e) => {
+        console.log('🔔 MouseUp on button!', e);
+        const tier = button.getAttribute('data-subscribe-tier');
+        const endpoint = button.getAttribute('data-subscribe-endpoint');
+        if (tier && endpoint && typeof subscribeToRelay === 'function') {
+          console.log('✅ Calling subscribeToRelay from mouseup');
+          subscribeToRelay(tier, endpoint);
+        }
+        e.preventDefault();
+        e.stopPropagation();
+      }, true);
+    });
+    
+    // Also use event delegation on the parent container as backup
+    // This will catch clicks even if direct listeners fail
+    newTiersList.addEventListener('click', (e) => {
+      console.log('🔔 Click detected on tiersList container:', {
+        target: e.target,
+        targetTag: e.target.tagName,
+        targetClass: e.target.className,
+        currentTarget: e.currentTarget
+      });
+      
+      // Check if click is on button or inside button - try multiple ways
+      let button = e.target.closest('.subscribe-tier-btn');
+      
+      // If not found, check if target is inside a button
+      if (!button && e.target.tagName === 'BUTTON') {
+        if (e.target.classList.contains('subscribe-tier-btn')) {
+          button = e.target;
+        }
+      }
+      
+      // If still not found, check parent elements
+      if (!button) {
+        let parent = e.target.parentElement;
+        let depth = 0;
+        while (parent && depth < 5) {
+          if (parent.classList && parent.classList.contains('subscribe-tier-btn')) {
+            button = parent;
+            break;
+          }
+          parent = parent.parentElement;
+          depth++;
+        }
+      }
+      
+      if (button) {
+        console.log('🔔 Event delegation found subscribe button!', button);
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        const tier = button.getAttribute('data-subscribe-tier');
+        const endpoint = button.getAttribute('data-subscribe-endpoint');
+        console.log('🔔 Button data:', { tier, endpoint, buttonElement: button });
+        
+        if (tier && endpoint && typeof subscribeToRelay === 'function') {
+          console.log('✅ Calling subscribeToRelay via event delegation');
+          subscribeToRelay(tier, endpoint);
+        } else {
+          console.error('❌ Missing data or function:', { tier, endpoint, hasFunction: typeof subscribeToRelay === 'function' });
+        }
+        return false;
+      } else {
+        // If click is on tier-card, find the button inside it
+        const tierCard = e.target.closest('.tier-card');
+        if (tierCard) {
+          console.log('🔍 Click on tier-card, searching for button inside...');
+          const buttonInCard = tierCard.querySelector('.subscribe-tier-btn');
+          if (buttonInCard) {
+            console.log('✅ Found button inside tier-card!', buttonInCard);
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            
+            const tier = buttonInCard.getAttribute('data-subscribe-tier');
+            const endpoint = buttonInCard.getAttribute('data-subscribe-endpoint');
+            console.log('🔔 Button data from tier-card:', { tier, endpoint });
+            
+            if (tier && endpoint && typeof subscribeToRelay === 'function') {
+              console.log('✅ Calling subscribeToRelay from tier-card click');
+              subscribeToRelay(tier, endpoint);
+            } else {
+              console.error('❌ Missing data or function:', { tier, endpoint, hasFunction: typeof subscribeToRelay === 'function' });
+            }
+            return false;
+          } else {
+            console.log('⚠️ No button found inside tier-card');
+          }
+        }
+        
+        console.log('⚠️ Click detected but no subscribe button found. Target path:', {
+          target: e.target,
+          targetTag: e.target.tagName,
+          parent: e.target.parentElement,
+          grandparent: e.target.parentElement?.parentElement,
+          tierCard: e.target.closest('.tier-card')
+        });
+      }
+    }, true); // Use capture phase
+
     // Load subscription status for this relay
     await loadSubscriptionStatus(endpoint);
     
@@ -2606,7 +2813,10 @@ async function loadSubscriptionTiers() {
     await loadSubscriptionFiles(endpoint);
   } catch (error) {
     console.error('Error loading tiers:', error);
-    tiersList.innerHTML = `<div class="text-center text-[#F44336] py-8">Error: ${error.message}</div>`;
+    const tiersList = document.getElementById('tiersList');
+    if (tiersList) {
+      tiersList.innerHTML = `<div class="text-center text-[#F44336] py-8">Error: ${error.message}</div>`;
+    }
     showMessage('subscriptionMessage', 'error', `Failed to load tiers: ${error.message}`);
   }
 }
@@ -2684,21 +2894,37 @@ async function loadSubscriptionStatus(relayEndpoint = null) {
 
 // Subscribe to a relay
 async function subscribeToRelay(tier, relayEndpoint) {
+  console.log('🔔 subscribeToRelay called with:', { tier, relayEndpoint, connectedAddress, hasSigner: !!signer });
+  
+  if (!tier || !relayEndpoint) {
+    console.error('❌ Missing parameters:', { tier, relayEndpoint });
+    showMessage('subscriptionMessage', 'error', 'Missing tier or relay endpoint');
+    return;
+  }
+  
   if (!connectedAddress || !signer) {
+    console.warn('⚠️ Wallet not connected');
     showMessage('subscriptionMessage', 'error', 'Please connect your wallet first');
     return;
   }
 
   try {
+    console.log('📝 Starting subscription process...');
     showMessage('subscriptionMessage', 'info', `Subscribing to ${tier} tier...`);
 
     // Step 1: Get payment requirements
+    console.log(`📡 Fetching payment requirements from: ${relayEndpoint}/api/v1/x402/payment-requirements/${tier}`);
     const requirementsResponse = await fetch(`${relayEndpoint}/api/v1/x402/payment-requirements/${tier}`);
+    
     if (!requirementsResponse.ok) {
+      const errorText = await requirementsResponse.text();
+      console.error('❌ Payment requirements failed:', requirementsResponse.status, errorText);
       throw new Error(`Failed to get payment requirements: ${requirementsResponse.status}`);
     }
 
     const requirementsData = await requirementsResponse.json();
+    console.log('📋 Payment requirements:', requirementsData);
+    
     if (!requirementsData.success || !requirementsData.x402) {
       throw new Error(requirementsData.error || 'No payment requirements available');
     }
@@ -2804,8 +3030,10 @@ async function subscribeToRelay(tier, relayEndpoint) {
     // Reload status
     await loadSubscriptionStatus(relayEndpoint);
   } catch (error) {
-    console.error('Subscription error:', error);
-    showMessage('subscriptionMessage', 'error', `Subscription failed: ${error.message}`);
+    console.error('❌ Subscription error:', error);
+    console.error('Error stack:', error.stack);
+    const errorMessage = error.message || 'Unknown error occurred';
+    showMessage('subscriptionMessage', 'error', `Subscription failed: ${errorMessage}`);
   }
 }
 
@@ -3097,7 +3325,7 @@ async function deriveKeypairFromSignature(address, message, signature) {
   // Option 2: Try dynamic import (requires shogun-core to be built and accessible)
   try {
     // Adjust path based on your setup - could be relative or from a CDN
-    const shogunCore = await import('https://cdn.jsdelivr.net/npm/shogun-core@6.5.5/dist/browser/shogun-core.js');
+    const shogunCore = await import('https://cdn.jsdelivr.net/npm/shogun-core@6.7.0/dist/browser/shogun-core.js');
     if (shogunCore.derive) {
       const keypair = await shogunCore.derive(address, salt, {
         includeP256: true,
@@ -3917,6 +4145,7 @@ window.depositUserStake = depositUserStake;
 console.log('✅ depositUserStake exported to window:', typeof window.depositUserStake);
 window.updateUserKeys = updateUserKeys;
 window.subscribeToRelay = subscribeToRelay;
+console.log('✅ subscribeToRelay exported to window:', typeof window.subscribeToRelay);
 window.verifyDeal = verifyDeal;
 window.showGriefModal = showGriefModal;
 window.closeGriefModal = closeGriefModal;
