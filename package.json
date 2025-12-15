@@ -21,9 +21,12 @@
     "vite": "^5.0.0"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "daisyui": "^5.5.14",
     "shogun-contracts-sdk": "^1.1.1",
     "shogun-ipfs": "^1.1.2",
-    "shogun-relay-sdk": "^1.1.5",
-    "vercel": "^49.1.1"
+    "shogun-relay-sdk": "^1.1.6",
+    "tailwindcss": "^4.1.18",
+    "vercel": "^49.2.0"
   }
 }

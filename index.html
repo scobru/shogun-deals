@@ -1,10 +1,19 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="shogun-dark">
+<html lang="en" data-theme="dark">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shogun Protocol - Storage Deals</title>
+  <title>Deals | shogun-eco</title>
+  <meta name="description" content="Decentralized Storage Deals with IPFS" />
+  <link rel="icon" href="./logo.svg" />
   <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+  <link rel="stylesheet" href="./index.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
   <!-- Gun.js and SEA for encryption - MUST be loaded before shogun-core -->
@@ -12,614 +21,43 @@
   <script src="https://cdn.jsdelivr.net/npm/gun@0.2020.1241/sea.js"></script>
   <!-- Shogun Core - MUST be loaded after Gun.js -->
   <script src="https://cdn.jsdelivr.net/npm/shogun-core@6.7.0/dist/browser/shogun-core.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-    * {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
-
-    body {
-      line-height: 1.6;
-      background: #0a0a0a;
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
-        radial-gradient(at 0% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%);
-      min-height: 100vh;
-      position: relative;
-      overflow-x: hidden;
-    }
-
-    body::before {
-      content: '';
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: 
-        radial-gradient(circle at 20% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .container {
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero-gradient {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .hero-gradient::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 70%);
-      animation: pulse 4s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 0.5; transform: scale(1); }
-      50% { opacity: 0.8; transform: scale(1.1); }
-    }
-
-    .card {
-      background: rgba(20, 20, 30, 0.7);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 1.5rem;
-      padding: 2rem;
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.5), transparent);
-      opacity: 0;
-      transition: opacity 0.4s;
-    }
-
-    .card:hover {
-      border-color: rgba(99, 102, 241, 0.5);
-      transform: translateY(-2px);
-      box-shadow: 0 12px 40px rgba(99, 102, 241, 0.2);
-    }
-
-    .card:hover::before {
-      opacity: 1;
-    }
-
-    .tier-card {
-      border: 2px solid rgba(255, 255, 255, 0.1);
-      border-radius: 1.25rem;
-      padding: 1.75rem;
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      background: rgba(20, 20, 30, 0.7);
-      backdrop-filter: blur(20px);
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    }
-
-    .tier-card::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-      opacity: 0;
-      transition: opacity 0.4s;
-    }
-
-    .tier-card:hover {
-      border-color: rgba(99, 102, 241, 0.4);
-      transform: translateY(-4px);
-      box-shadow: 0 12px 40px rgba(99, 102, 241, 0.25);
-    }
-
-    .tier-card:hover::after {
-      opacity: 1;
-    }
-
-    .tier-card.selected {
-      border-color: #6366f1;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
-      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
-    }
-
-    .tier-card.selected::after {
-      opacity: 1;
-    }
-
-    .tier-price {
-      font-size: 1.75rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #3b82f6 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      position: relative;
-      z-index: 1;
-      letter-spacing: -0.02em;
-    }
-
-    .deal-card {
-      background: rgba(20, 20, 30, 0.7);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 1.25rem;
-      padding: 1.5rem;
-      margin-bottom: 1rem;
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-      overflow: hidden;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    }
-
-    .deal-card::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 4px;
-      transition: width 0.3s;
-    }
-
-    .deal-card:hover {
-      border-color: rgba(99, 102, 241, 0.4);
-      transform: translateX(4px) translateY(-2px);
-      box-shadow: 0 12px 40px rgba(99, 102, 241, 0.25);
-    }
-
-    .deal-card.active {
-      border-left-color: #22c55e;
-    }
-
-    .deal-card.active::before {
-      background: linear-gradient(180deg, #22c55e, #16a34a);
-      width: 4px;
-    }
-
-    .deal-card.pending {
-      border-left-color: #f59e0b;
-    }
-
-    .deal-card.pending::before {
-      background: linear-gradient(180deg, #f59e0b, #f97316);
-      width: 4px;
-    }
-
-    .deal-card.expired {
-      border-left-color: #ef4444;
-      opacity: 0.7;
-    }
-
-    .deal-card.expired::before {
-      background: linear-gradient(180deg, #ef4444, #dc2626);
-      width: 4px;
-    }
-
-    .deal-card.terminated {
-      border-left-color: #9ca3af;
-      opacity: 0.7;
-    }
-
-    .deal-card.terminated::before {
-      background: linear-gradient(180deg, #9ca3af, #6b7280);
-      width: 4px;
-    }
-
-    .status-badge {
-      padding: 0.375rem 0.875rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      backdrop-filter: blur(10px);
-      border: 1px solid;
-    }
-
-    .status-active { 
-      background: rgba(34, 197, 94, 0.15); 
-      border-color: rgba(34, 197, 94, 0.3);
-      color: #22c55e; 
-    }
-    .status-pending { 
-      background: rgba(245, 158, 11, 0.15); 
-      border-color: rgba(245, 158, 11, 0.3);
-      color: #f59e0b; 
-    }
-    .status-expired { 
-      background: rgba(239, 68, 68, 0.15); 
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #ef4444; 
-    }
-    .status-terminated { 
-      background: rgba(156, 163, 175, 0.15); 
-      border-color: rgba(156, 163, 175, 0.3);
-      color: #9ca3af; 
-    }
-
-    .badge-standard { 
-      background: linear-gradient(135deg, #64748b 0%, #475569 100%);
-      color: white; 
-      border: none;
-    }
-    .badge-premium { 
-      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-      color: white; 
-      border: none;
-    }
-    .badge-enterprise { 
-      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-      color: white; 
-      border: none;
-    }
-
-    .stat-card {
-      background: rgba(20, 20, 30, 0.7);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 1.25rem;
-      padding: 2rem 1.5rem;
-      text-align: center;
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .stat-card::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-      opacity: 0;
-      transition: opacity 0.4s;
-    }
-
-    .stat-card:hover {
-      transform: translateY(-4px);
-      border-color: rgba(99, 102, 241, 0.4);
-      box-shadow: 0 12px 40px rgba(99, 102, 241, 0.25);
-    }
-
-    .stat-card:hover::after {
-      opacity: 1;
-    }
-
-    .stat-value {
-      font-size: 2.5rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #3b82f6 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      position: relative;
-      z-index: 1;
-      letter-spacing: -0.02em;
-    }
-
-    .stat-label {
-      font-size: 0.875rem;
-      color: rgba(255, 255, 255, 0.6);
-      font-weight: 500;
-      margin-top: 0.5rem;
-      position: relative;
-      z-index: 1;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .message {
-      padding: 1.25rem 1.5rem;
-      border-radius: 1rem;
-      margin-top: 1.5rem;
-      display: none;
-      backdrop-filter: blur(20px);
-      border: 1px solid;
-      font-weight: 500;
-      animation: slideIn 0.3s ease-out;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .message.success {
-      background: rgba(34, 197, 94, 0.15);
-      border-color: rgba(34, 197, 94, 0.3);
-      color: #22c55e;
-    }
-
-    .message.error {
-      background: rgba(239, 68, 68, 0.15);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #ef4444;
-    }
-
-    .message.info {
-      background: rgba(59, 130, 246, 0.15);
-      border-color: rgba(59, 130, 246, 0.3);
-      color: #3b82f6;
-    }
-
-    .loading-spinner {
-      display: inline-block;
-      width: 1.25rem;
-      height: 1.25rem;
-      border: 2px solid rgba(255, 255, 255, 0.2);
-      border-radius: 50%;
-      border-top-color: #6366f1;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    .input-field {
-      background: rgba(15, 15, 20, 0.8);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 1rem;
-      padding: 1rem 1.25rem;
-      color: #ffffff;
-      width: 100%;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      font-size: 1rem;
-      font-weight: 500;
-    }
-
-    .input-field::placeholder {
-      color: rgba(255, 255, 255, 0.4);
-    }
-
-    .input-field:focus {
-      outline: none;
-      border-color: #6366f1;
-      background: rgba(15, 15, 20, 0.95);
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-    }
-
-    .input-field:hover {
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-
-    .section-title {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #FFFFFF;
-      margin-bottom: 1.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      letter-spacing: -0.02em;
-    }
-
-    .tab-button {
-      padding: 0.875rem 1.5rem;
-      border-radius: 1rem;
-      font-weight: 600;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      background-color: transparent;
-      color: rgba(255, 255, 255, 0.6);
-      border: 1px solid transparent;
-      font-size: 0.9375rem;
-      position: relative;
-    }
-
-    .tab-button::before {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 0;
-      height: 2px;
-      background: linear-gradient(90deg, #6366f1, #8b5cf6);
-      transition: width 0.3s;
-    }
-
-    .tab-button:hover {
-      background-color: rgba(99, 102, 241, 0.1);
-      color: rgba(255, 255, 255, 0.9);
-    }
-
-    .tab-button.active {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
-      color: #ffffff;
-      border-color: rgba(99, 102, 241, 0.3);
-    }
-
-    .tab-button.active::before {
-      width: 80%;
-    }
-
-    .network-selector {
-      margin-bottom: 1.5rem;
-      padding: 1.5rem;
-      background: rgba(20, 20, 30, 0.7);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 1.25rem;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    }
-
-    /* Button enhancements */
-    .btn {
-      font-weight: 600;
-      border-radius: 1rem;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .btn::before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 0;
-      height: 0;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.2);
-      transform: translate(-50%, -50%);
-      transition: width 0.6s, height 0.6s;
-    }
-
-    .btn:hover::before {
-      width: 300px;
-      height: 300px;
-    }
-
-    .btn-primary, .btn.bg-\[#42A5F5\] {
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-      border: none;
-      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
-      color: #ffffff;
-    }
-
-    .btn-primary:hover, .btn.bg-\[#42A5F5\]:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5);
-    }
-
-    .btn-secondary, .btn.bg-\[#404040\] {
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      color: #ffffff;
-    }
-
-    .btn-secondary:hover, .btn.bg-\[#404040\]:hover {
-      background: rgba(255, 255, 255, 0.15);
-      border-color: rgba(255, 255, 255, 0.3);
-      transform: translateY(-2px);
-    }
-
-    /* Scrollbar styling */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: rgba(15, 15, 20, 0.5);
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: rgba(99, 102, 241, 0.5);
-      border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(99, 102, 241, 0.7);
-    }
-
-    /* Typography improvements */
-    h1 {
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    h2, h3 {
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-
-    /* Select field styling */
-    select.input-field {
-      cursor: pointer;
-      appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 1rem center;
-      padding-right: 2.5rem;
-    }
-
-    /* Checkbox styling */
-    .checkbox {
-      border-radius: 0.5rem;
-      border-color: rgba(255, 255, 255, 0.2);
-      background: rgba(15, 15, 20, 0.8);
-    }
-
-    .checkbox:checked {
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-      border-color: #6366f1;
-    }
-
-    /* Responsive improvements */
-    @media (max-width: 768px) {
-      .card {
-        padding: 1.5rem;
-      }
-      
-      .stat-value {
-        font-size: 2rem;
-      }
-    }
-  </style>
 </head>
-<body class="antialiased">
-  <div class="hero-gradient min-h-screen">
-    <div class="container mx-auto p-6 max-w-5xl">
+
+<body>
+  <div class="app-shell">
+    <!-- Navbar -->
+    <header class="navbar-custom">
+      <div class="navbar-inner">
+        <div class="navbar-title">
+          <img src="./logo.svg" alt="Shogun Logo" class="w-12 h-12" />
+          <div>
+            <span class="font-semibold text-white">Deals</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
       <!-- Header -->
       <div class="hero-gradient rounded-3xl p-8 md:p-12 mb-8 relative">
         <div class="relative z-10">
           <div class="flex items-center gap-3 mb-4">
-            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-              <img src="logo.svg" alt="Shogun Protocol" class="w-8 h-8" onerror="this.style.display='none'; this.parentElement.innerHTML='⚔️';">
+            <div class="w-20 h-20 rounded-xl flex items-center justify-center shadow-lg p-2">
+              <img src="./logo.svg" alt="Shogun Logo" class="w-full h-full" />
             </div>
             <div>
               <h1 class="text-4xl md:text-5xl font-bold text-white mb-1">Storage Deals</h1>
-              <p class="text-gray-300 text-sm md:text-base font-medium">Decentralized Storage Deals</p>
+              <p class="text-gray-300 text-sm md:text-base font-medium">Decentralized Storage Deals with IPFS</p>
             </div>
           </div>
           <div class="flex items-center gap-2 mt-4">
-            <span class="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">On-Chain Contracts</span>
-            <span class="px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-semibold">IPFS Storage</span>
+            <span
+              class="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">On-Chain
+              Contracts</span>
+            <span
+              class="px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-semibold">IPFS
+              Storage</span>
           </div>
         </div>
       </div>
@@ -640,395 +78,453 @@
       <!-- Main Card -->
       <div class="card mb-6">
         <div class="flex flex-col items-center mb-8">
-          <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 mb-6 shadow-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <div
+            class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 mb-6 shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
           <h2 class="text-3xl font-bold mb-3 text-white">Storage Deals</h2>
-          <p class="text-gray-300 text-center font-medium">Per-file contracts with on-chain registration and griefing protection</p>
+          <p class="text-gray-300 text-center font-medium">Per-file contracts with on-chain registration and griefing
+            protection</p>
         </div>
 
-          <!-- Wallet Connection -->
-          <div id="walletSection" class="mb-6">
-            <button id="connectWalletBtn" class="btn btn-primary w-full py-3 text-base font-semibold">
-              <span class="relative z-10 flex items-center justify-center gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+        <!-- Wallet Connection -->
+        <div id="walletSection" class="mb-6">
+          <button id="connectWalletBtn" class="btn btn-primary w-full py-3 text-base font-semibold">
+            <span class="relative z-10 flex items-center justify-center gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              Connect Wallet
+            </span>
+          </button>
+        </div>
+
+        <div id="connectedSection" style="display: none;">
+          <div
+            class="flex items-center justify-between p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 mb-6 backdrop-blur-sm">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                 </svg>
-                Connect Wallet
-              </span>
+              </div>
+              <div>
+                <div class="text-white font-semibold">Wallet Connected</div>
+                <div class="text-gray-300 text-sm font-mono" id="walletAddress">0x...</div>
+              </div>
+            </div>
+            <button onclick="disconnectWallet()"
+              class="text-red-400 hover:text-red-300 font-medium transition-colors">Disconnect</button>
+          </div>
+
+          <!-- Tabs -->
+          <div class="flex gap-2 mb-8 justify-center flex-wrap border-b border-white/10 pb-2">
+            <button class="tab-button active" onclick="showTab('create', event)">
+              <span class="relative z-10">✨ Create Deal</span>
+            </button>
+            <button class="tab-button" onclick="showTab('mydeals', event)">
+              <span class="relative z-10">📦 My Deals</span>
+            </button>
+            <button class="tab-button" onclick="showTab('subscriptions', event)">
+              <span class="relative z-10">💳 Subscriptions</span>
+            </button>
+            <button class="tab-button" onclick="showTab('register', event)">
+              <span class="relative z-10">👤 Register</span>
             </button>
           </div>
 
-          <div id="connectedSection" style="display: none;">
-            <div class="flex items-center justify-between p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 mb-6 backdrop-blur-sm">
-              <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                  </svg>
+          <!-- Tab: Create Deal -->
+          <div id="tab-create" class="tab-content">
+            <h2 class="section-title">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Create New Deal
+            </h2>
+
+            <div class="space-y-4">
+              <!-- File Upload or CID Input -->
+              <div>
+                <label class="text-[#A0A0A0] text-sm mb-2 block">Upload File or Enter IPFS CID *</label>
+                <div class="flex gap-2 mb-2">
+                  <input type="file" id="dealFile" class="input-field flex-1" accept="*/*"
+                    onchange="handleFileSelect()">
+                  <button type="button" onclick="uploadToIPFS()" id="uploadBtn"
+                    class="btn btn-primary px-4 py-2.5 font-semibold" style="display: none;">
+                    <span class="relative z-10">Upload to IPFS</span>
+                  </button>
+                </div>
+                <div class="flex gap-2 mb-2">
+                  <input type="text" id="dealCid" class="input-field flex-1" placeholder="Qm... (or upload file above)">
+                  <button type="button"
+                    onclick="copyToClipboard(document.getElementById('dealCid').value, 'CID copied!')"
+                    class="btn btn-secondary px-3 py-2.5" title="Copy CID">
+                    <span class="relative z-10">📋</span>
+                  </button>
+                </div>
+                <p class="text-gray-400 text-xs mt-2 font-medium">Upload a file to IPFS or enter an existing IPFS CID
+                </p>
+
+                <!-- Encryption Option -->
+                <div
+                  class="mt-4 p-4 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="dealEncryptionEnabled" class="checkbox checkbox-primary" checked>
+                    <span class="text-sm text-gray-300">
+                      <span class="text-white font-semibold">Enable Encryption</span>
+                      <span class="text-gray-400"> - File will be encrypted before upload</span>
+                    </span>
+                  </label>
+                  <p class="text-xs text-gray-400 mt-2 ml-6">If disabled, file will be uploaded as public (unencrypted)
+                  </p>
+                </div>
+
+                <div id="uploadStatus" class="text-[#42A5F5] text-xs mt-1" style="display: none;"></div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="text-[#A0A0A0] text-sm mb-2 block">File Size (MB) *</label>
+                  <input type="number" id="dealSizeMB" class="input-field" placeholder="100" min="1"
+                    oninput="debouncedCalculatePrice()">
                 </div>
                 <div>
-                  <div class="text-white font-semibold">Wallet Connected</div>
-                  <div class="text-gray-300 text-sm font-mono" id="walletAddress">0x...</div>
+                  <label class="text-[#A0A0A0] text-sm mb-2 block">Duration (Days) *</label>
+                  <input type="number" id="dealDuration" class="input-field" placeholder="30" min="7" value="30"
+                    oninput="debouncedCalculatePrice()">
                 </div>
               </div>
-              <button onclick="disconnectWallet()" class="text-red-400 hover:text-red-300 font-medium transition-colors">Disconnect</button>
-            </div>
 
-            <!-- Tabs -->
-            <div class="flex gap-2 mb-8 justify-center flex-wrap border-b border-white/10 pb-2">
-              <button class="tab-button active" onclick="showTab('create', event)">
-                <span class="relative z-10">✨ Create Deal</span>
-              </button>
-              <button class="tab-button" onclick="showTab('mydeals', event)">
-                <span class="relative z-10">📦 My Deals</span>
-              </button>
-              <button class="tab-button" onclick="showTab('subscriptions', event)">
-                <span class="relative z-10">💳 Subscriptions</span>
-              </button>
-              <button class="tab-button" onclick="showTab('register', event)">
-                <span class="relative z-10">👤 Register</span>
-              </button>
-            </div>
+              <div>
+                <label class="text-[#A0A0A0] text-sm mb-2 block">Tier</label>
+                <select id="dealTier" class="input-field" onchange="debouncedCalculatePrice()">
+                  <option value="standard">Standard - Basic storage</option>
+                  <option value="premium" selected>Premium - Erasure coding + 3x replication</option>
+                  <option value="enterprise">Enterprise - 5x replication + SLA</option>
+                </select>
+              </div>
 
-            <!-- Tab: Create Deal -->
-            <div id="tab-create" class="tab-content">
-              <h2 class="section-title">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Create New Deal
-              </h2>
-
-              <div class="space-y-4">
-                <!-- File Upload or CID Input -->
-                <div>
-                  <label class="text-[#A0A0A0] text-sm mb-2 block">Upload File or Enter IPFS CID *</label>
-                  <div class="flex gap-2 mb-2">
-                    <input type="file" id="dealFile" class="input-field flex-1" accept="*/*" onchange="handleFileSelect()">
-                    <button type="button" onclick="uploadToIPFS()" id="uploadBtn" class="btn btn-primary px-4 py-2.5 font-semibold" style="display: none;">
-                      <span class="relative z-10">Upload to IPFS</span>
-                    </button>
-                  </div>
-                  <div class="flex gap-2 mb-2">
-                    <input type="text" id="dealCid" class="input-field flex-1" placeholder="Qm... (or upload file above)">
-                    <button type="button" onclick="copyToClipboard(document.getElementById('dealCid').value, 'CID copied!')" class="btn btn-secondary px-3 py-2.5" title="Copy CID">
-                      <span class="relative z-10">📋</span>
-                    </button>
-                  </div>
-                  <p class="text-gray-400 text-xs mt-2 font-medium">Upload a file to IPFS or enter an existing IPFS CID</p>
-                  
-                  <!-- Encryption Option -->
-                  <div class="mt-4 p-4 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" id="dealEncryptionEnabled" class="checkbox checkbox-primary" checked>
-                      <span class="text-sm text-gray-300">
-                        <span class="text-white font-semibold">Enable Encryption</span>
-                        <span class="text-gray-400"> - File will be encrypted before upload</span>
-                      </span>
-                    </label>
-                    <p class="text-xs text-gray-400 mt-2 ml-6">If disabled, file will be uploaded as public (unencrypted)</p>
-                  </div>
-                  
-                  <div id="uploadStatus" class="text-[#42A5F5] text-xs mt-1" style="display: none;"></div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label class="text-[#A0A0A0] text-sm mb-2 block">File Size (MB) *</label>
-                    <input type="number" id="dealSizeMB" class="input-field" placeholder="100" min="1" oninput="debouncedCalculatePrice()">
-                  </div>
-                  <div>
-                    <label class="text-[#A0A0A0] text-sm mb-2 block">Duration (Days) *</label>
-                    <input type="number" id="dealDuration" class="input-field" placeholder="30" min="7" value="30" oninput="debouncedCalculatePrice()">
-                  </div>
-                </div>
-
-                <div>
-                  <label class="text-[#A0A0A0] text-sm mb-2 block">Tier</label>
-                  <select id="dealTier" class="input-field" onchange="debouncedCalculatePrice()">
-                    <option value="standard">Standard - Basic storage</option>
-                    <option value="premium" selected>Premium - Erasure coding + 3x replication</option>
-                    <option value="enterprise">Enterprise - 5x replication + SLA</option>
+              <!-- Relay Selection -->
+              <div>
+                <label class="text-[#A0A0A0] text-sm mb-2 block">Select Relay Provider *</label>
+                <div class="flex gap-2 mb-2">
+                  <button onclick="showRelayLeaderboard()" class="btn btn-primary px-4 py-2.5 font-semibold"
+                    title="View relay leaderboard">
+                    <span class="relative z-10">📊 Leaderboard</span>
+                  </button>
+                  <select id="dealRelay" class="input-field flex-1">
+                    <option value="">Loading relays...</option>
                   </select>
+                  <button onclick="loadAvailableRelays()" class="btn btn-secondary px-4 py-2.5"
+                    title="Refresh relay list">
+                    <span class="relative z-10">🔄</span>
+                  </button>
                 </div>
-
-                <!-- Relay Selection -->
-                <div>
-                  <label class="text-[#A0A0A0] text-sm mb-2 block">Select Relay Provider *</label>
-                  <div class="flex gap-2 mb-2">
-                    <button onclick="showRelayLeaderboard()" class="btn btn-primary px-4 py-2.5 font-semibold" title="View relay leaderboard">
-                      <span class="relative z-10">📊 Leaderboard</span>
-                    </button>
-                    <select id="dealRelay" class="input-field flex-1">
-                      <option value="">Loading relays...</option>
-                    </select>
-                    <button onclick="loadAvailableRelays()" class="btn btn-secondary px-4 py-2.5" title="Refresh relay list">
-                      <span class="relative z-10">🔄</span>
-                    </button>
-                  </div>
-                  <div id="relayInfo" class="text-gray-400 text-xs mt-2" style="display: none;">
-                    <div class="p-4 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
-                      <div class="flex justify-between mb-2">
-                        <span class="text-gray-300 font-medium">Stake:</span>
-                        <span id="relayStake" class="text-white font-semibold">--</span>
-                      </div>
-                      <div class="flex justify-between mb-1">
-                        <span class="text-gray-300 font-medium">Endpoint:</span>
-                        <a id="relayEndpoint" href="#" target="_blank" class="text-indigo-400 hover:text-indigo-300 hover:underline text-xs font-medium">--</a>
-                      </div>
-                      <!-- Reputation section will be dynamically inserted here -->
+                <div id="relayInfo" class="text-gray-400 text-xs mt-2" style="display: none;">
+                  <div
+                    class="p-4 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
+                    <div class="flex justify-between mb-2">
+                      <span class="text-gray-300 font-medium">Stake:</span>
+                      <span id="relayStake" class="text-white font-semibold">--</span>
                     </div>
+                    <div class="flex justify-between mb-1">
+                      <span class="text-gray-300 font-medium">Endpoint:</span>
+                      <a id="relayEndpoint" href="#" target="_blank"
+                        class="text-indigo-400 hover:text-indigo-300 hover:underline text-xs font-medium">--</a>
+                    </div>
+                    <!-- Reputation section will be dynamically inserted here -->
                   </div>
                 </div>
-
-                <!-- Client Stake (Optional) -->
-                <div>
-                  <label class="text-[#A0A0A0] text-sm mb-2 block">Client Stake (Optional)</label>
-                  <input type="number" id="clientStake" class="input-field" placeholder="0" min="0" step="0.001">
-                  <p class="text-[#606060] text-xs mt-1">Optional stake to improve griefing ratio. Leave 0 if not staking.</p>
-                </div>
-
-                <div id="dealPreview" class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm" style="display: none;">
-                  <div class="flex justify-between mb-3">
-                    <span class="text-gray-300 font-medium">Estimated Price:</span>
-                    <span class="text-indigo-400 font-bold text-lg" id="dealPrice">--</span>
-                  </div>
-                  <div class="flex justify-between text-sm">
-                    <span class="text-gray-400">Expires:</span>
-                    <span class="text-gray-300 font-medium" id="dealExpiry">--</span>
-                  </div>
-                </div>
-
-                <button id="createDealBtn" class="btn btn-primary w-full py-3 text-base font-semibold" onclick="createDeal()">
-                  <span class="relative z-10">Create Deal On-Chain</span>
-                </button>
               </div>
 
-              <div id="createMessage" class="message"></div>
+              <!-- Client Stake (Optional) -->
+              <div>
+                <label class="text-[#A0A0A0] text-sm mb-2 block">Client Stake (Optional)</label>
+                <input type="number" id="clientStake" class="input-field" placeholder="0" min="0" step="0.001">
+                <p class="text-[#606060] text-xs mt-1">Optional stake to improve griefing ratio. Leave 0 if not staking.
+                </p>
+              </div>
+
+              <div id="dealPreview"
+                class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm"
+                style="display: none;">
+                <div class="flex justify-between mb-3">
+                  <span class="text-gray-300 font-medium">Estimated Price:</span>
+                  <span class="text-indigo-400 font-bold text-lg" id="dealPrice">--</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                  <span class="text-gray-400">Expires:</span>
+                  <span class="text-gray-300 font-medium" id="dealExpiry">--</span>
+                </div>
+              </div>
+
+              <button id="createDealBtn" class="btn btn-primary w-full py-3 text-base font-semibold"
+                onclick="createDeal()">
+                <span class="relative z-10">Create Deal On-Chain</span>
+              </button>
             </div>
 
-            <!-- Tab: My Deals -->
-            <div id="tab-mydeals" class="tab-content" style="display: none;">
-              <div class="flex items-center justify-between mb-6">
-                <h2 class="section-title mb-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                  My Deals
-                </h2>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" id="showAllDeals" class="checkbox checkbox-primary" onchange="loadMyDeals()" />
-                  <span class="text-sm text-[#A0A0A0]">Show all deals</span>
-                </label>
-              </div>
+            <div id="createMessage" class="message"></div>
+          </div>
 
-              <div id="myDealsContent">
-                <!-- Stats -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div class="stat-card">
-                    <div class="stat-value" id="statTotal">0</div>
-                    <div class="stat-label">Total Deals</div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-value" id="statActive">0</div>
-                    <div class="stat-label">Active</div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-value" id="statStorage">0</div>
-                    <div class="stat-label">MB Stored</div>
-                  </div>
-                  <div class="stat-card">
-                    <div class="stat-value" id="statSpent">$0</div>
-                    <div class="stat-label">Total Spent</div>
-                  </div>
-                </div>
-
-                <!-- Deals List -->
-                <div id="dealsList" class="space-y-4">
-                  <div class="text-center text-[#A0A0A0] py-8">
-                    <div class="loading-spinner mb-4"></div>
-                    <p>Loading deals...</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tab: Subscriptions -->
-            <div id="tab-subscriptions" class="tab-content" style="display: none;">
-              <h2 class="section-title">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          <!-- Tab: My Deals -->
+          <div id="tab-mydeals" class="tab-content" style="display: none;">
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="section-title mb-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
-                IPFS Storage Subscriptions
+                My Deals
               </h2>
-
-              <div class="space-y-6">
-                <!-- Relay Selection -->
-                <div>
-                  <label class="text-[#A0A0A0] text-sm mb-2 block">Select Relay *</label>
-                  <select id="subscriptionRelaySelect" class="input-field" onchange="loadSubscriptionTiers()">
-                    <option value="">Choose a relay...</option>
-                  </select>
-                  <p class="text-[#606060] text-xs mt-1">Choose a relay from the registry to subscribe to</p>
-                </div>
-
-                <!-- Subscription Status -->
-                <div id="subscriptionStatus" style="display: none;">
-                  <div class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
-                    <h3 class="text-white font-semibold mb-3">Current Subscription</h3>
-                    <div id="subscriptionStatusContent" class="text-gray-300 text-sm">
-                      Loading...
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Available Tiers -->
-                <div id="subscriptionTiers" style="display: none;">
-                  <h3 class="text-[#FFFFFF] font-medium mb-4">Available Subscription Tiers</h3>
-                  <div id="tiersList" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- Tiers will be loaded here -->
-                  </div>
-                </div>
-
-                <!-- Subscription Files Management -->
-                <div id="subscriptionFilesSection" style="display: none;">
-                  <h3 class="text-[#FFFFFF] font-medium mb-4">My Uploaded Files</h3>
-                  
-                  <!-- Upload Section -->
-                  <div class="mb-6 p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
-                    <h4 class="text-white font-semibold mb-3">Upload File</h4>
-                    <div class="space-y-3">
-                      <input type="file" id="subscriptionFileInput" class="input-field" accept="*/*">
-                      
-                      <!-- Encryption Option -->
-                      <div class="p-4 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" id="subscriptionEncryptionEnabled" class="checkbox checkbox-primary" checked>
-                          <span class="text-sm text-gray-300">
-                            <span class="text-white font-semibold">Enable Encryption</span>
-                            <span class="text-gray-400"> - File will be encrypted before upload</span>
-                          </span>
-                        </label>
-                        <p class="text-xs text-gray-400 mt-2 ml-6">If disabled, file will be uploaded as public (unencrypted)</p>
-                      </div>
-                      
-                      <button onclick="uploadSubscriptionFile()" id="uploadSubscriptionBtn" class="btn btn-primary w-full py-3 font-semibold">
-                        <span class="relative z-10">Upload to IPFS</span>
-                      </button>
-                      <div id="subscriptionUploadStatus" class="text-sm" style="display: none;"></div>
-                    </div>
-                  </div>
-
-                  <!-- Files List -->
-                  <div id="subscriptionFilesList" class="space-y-3">
-                    <div class="text-center text-[#A0A0A0] py-4">
-                      <div class="loading-spinner mb-2"></div>
-                      <p>Loading files...</p>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Subscription Message -->
-                <div id="subscriptionMessage" class="message"></div>
-              </div>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="showAllDeals" class="checkbox checkbox-primary" onchange="loadMyDeals()" />
+                <span class="text-sm text-[#A0A0A0]">Show all deals</span>
+              </label>
             </div>
 
-            <!-- Tab: Register -->
-            <div id="tab-register" class="tab-content" style="display: none;">
-              <h2 class="section-title">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
-                Register to Shogun Protocol
-              </h2>
+            <div id="myDealsContent">
+              <!-- Stats -->
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="stat-card">
+                  <div class="stat-value" id="statTotal">0</div>
+                  <div class="stat-label">Total Deals</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value" id="statActive">0</div>
+                  <div class="stat-label">Active</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value" id="statStorage">0</div>
+                  <div class="stat-label">MB Stored</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value" id="statSpent">$0</div>
+                  <div class="stat-label">Total Spent</div>
+                </div>
+              </div>
 
-              <div class="space-y-6">
-                <!-- Registration Status -->
-                <div id="registrationStatus" class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm" style="display: none;">
-                  <h3 class="text-white font-semibold mb-3">Registration Status</h3>
-                  <div id="registrationStatusContent" class="text-gray-300 text-sm">
+              <!-- Deals List -->
+              <div id="dealsList" class="space-y-4">
+                <div class="text-center text-[#A0A0A0] py-8">
+                  <div class="loading-spinner mb-4"></div>
+                  <p>Loading deals...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Subscriptions -->
+          <div id="tab-subscriptions" class="tab-content" style="display: none;">
+            <h2 class="section-title">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              IPFS Storage Subscriptions
+            </h2>
+
+            <div class="space-y-6">
+              <!-- Relay Selection -->
+              <div>
+                <label class="text-[#A0A0A0] text-sm mb-2 block">Select Relay *</label>
+                <select id="subscriptionRelaySelect" class="input-field" onchange="loadSubscriptionTiers()">
+                  <option value="">Choose a relay...</option>
+                </select>
+                <p class="text-[#606060] text-xs mt-1">Choose a relay from the registry to subscribe to</p>
+              </div>
+
+              <!-- Subscription Status -->
+              <div id="subscriptionStatus" style="display: none;">
+                <div
+                  class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
+                  <h3 class="text-white font-semibold mb-3">Current Subscription</h3>
+                  <div id="subscriptionStatusContent" class="text-gray-300 text-sm">
                     Loading...
                   </div>
                 </div>
+              </div>
 
-                <!-- Registration Info -->
-                <div class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
-                  <h3 class="text-white font-semibold mb-3">What is User Registration?</h3>
-                  <ul class="text-gray-300 text-sm space-y-2 mb-4">
-                    <li>• Register your encryption keys (pubkey/epub) on-chain</li>
-                    <li>• Enable encrypted data exchange with other users</li>
-                    <li>• Optional: Deposit stake for better griefing protection</li>
-                    <li>• Free to register - no stake required</li>
-                  </ul>
-                </div>
-
-                <!-- Keypair Status -->
-                <div id="keypairStatus" class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
-                  <h3 class="text-white font-semibold mb-3">Encryption Keys</h3>
-                  <div id="keypairStatusContent" class="text-gray-300 text-sm">
-                    <div class="flex items-center gap-2 mb-2">
-                      <div class="loading-spinner"></div>
-                      <span>Generating encryption keys...</span>
-                  </div>
-                    <p class="text-gray-400 text-xs">Keys are derived from your wallet signature using GunDB SEA</p>
+              <!-- Available Tiers -->
+              <div id="subscriptionTiers" style="display: none;">
+                <h3 class="text-[#FFFFFF] font-medium mb-4">Available Subscription Tiers</h3>
+                <div id="tiersList" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <!-- Tiers will be loaded here -->
                 </div>
               </div>
 
-                <!-- Register Button -->
-                  <div>
-                  <button id="registerUserBtn" class="btn btn-primary w-full py-3 text-base font-semibold" onclick="registerUser()" disabled>
-                    <span class="relative z-10 flex items-center justify-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                      </svg>
-                      Register to Protocol
-                    </span>
-                  </button>
-                  <p class="text-[#606060] text-xs mt-2 text-center">Registration is free and requires no stake</p>
-                  </div>
+              <!-- Subscription Files Management -->
+              <div id="subscriptionFilesSection" style="display: none;">
+                <h3 class="text-[#FFFFFF] font-medium mb-4">My Uploaded Files</h3>
 
-                <!-- Optional Stake Section -->
-                <div class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
-                  <h3 class="text-white font-semibold mb-3">Optional: Deposit Stake</h3>
-                  <p class="text-gray-300 text-sm mb-4">Depositing stake improves your griefing ratio, making it cheaper for others to grief you if you misbehave.</p>
-                  
+                <!-- Upload Section -->
+                <div
+                  class="mb-6 p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
+                  <h4 class="text-white font-semibold mb-3">Upload File</h4>
                   <div class="space-y-3">
-                  <div>
-                      <label class="text-[#A0A0A0] text-sm mb-2 block">Stake Amount (USDC)</label>
-                      <input type="number" id="userStakeAmount" class="input-field" placeholder="0" min="0" step="0.001">
-                      <p class="text-[#606060] text-xs mt-1">Leave 0 if you don't want to stake</p>
-                  </div>
-                    
-                    <button id="depositStakeBtn" class="btn btn-secondary w-full py-3 font-semibold" onclick="console.log('🔴 Button clicked! Disabled?', this.disabled); if(!this.disabled && typeof depositUserStake === 'function') { depositUserStake(); } else if(this.disabled) { console.warn('⚠️ Button is disabled'); alert('Button is disabled. Please make sure you are registered as a user first.'); } else { console.error('depositUserStake function not found!'); alert('Error: depositUserStake function not loaded. Please refresh the page.'); }" disabled>
-                      <span class="relative z-10">Deposit Stake</span>
+                    <input type="file" id="subscriptionFileInput" class="input-field" accept="*/*">
+
+                    <!-- Encryption Option -->
+                    <div
+                      class="p-4 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
+                      <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="subscriptionEncryptionEnabled" class="checkbox checkbox-primary"
+                          checked>
+                        <span class="text-sm text-gray-300">
+                          <span class="text-white font-semibold">Enable Encryption</span>
+                          <span class="text-gray-400"> - File will be encrypted before upload</span>
+                        </span>
+                      </label>
+                      <p class="text-xs text-gray-400 mt-2 ml-6">If disabled, file will be uploaded as public
+                        (unencrypted)</p>
+                    </div>
+
+                    <button onclick="uploadSubscriptionFile()" id="uploadSubscriptionBtn"
+                      class="btn btn-primary w-full py-3 font-semibold">
+                      <span class="relative z-10">Upload to IPFS</span>
                     </button>
+                    <div id="subscriptionUploadStatus" class="text-sm" style="display: none;"></div>
                   </div>
                 </div>
 
-                <!-- Update Keys Section -->
-                <div class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
-                  <h3 class="text-white font-semibold mb-3">Update Encryption Keys</h3>
-                  <p class="text-gray-300 text-sm mb-4">If you need to update your encryption keys, click the button below to regenerate and update them.</p>
-                  
-                  <button id="updateKeysBtn" class="btn btn-secondary w-full py-3 font-semibold" onclick="updateUserKeys()" disabled>
-                    <span class="relative z-10">Update Keys</span>
+                <!-- Files List -->
+                <div id="subscriptionFilesList" class="space-y-3">
+                  <div class="text-center text-[#A0A0A0] py-4">
+                    <div class="loading-spinner mb-2"></div>
+                    <p>Loading files...</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Subscription Message -->
+              <div id="subscriptionMessage" class="message"></div>
+            </div>
+          </div>
+
+          <!-- Tab: Register -->
+          <div id="tab-register" class="tab-content" style="display: none;">
+            <h2 class="section-title">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#42A5F5]" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+              Register to Shogun Protocol
+            </h2>
+
+            <div class="space-y-6">
+              <!-- Registration Status -->
+              <div id="registrationStatus"
+                class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm"
+                style="display: none;">
+                <h3 class="text-white font-semibold mb-3">Registration Status</h3>
+                <div id="registrationStatusContent" class="text-gray-300 text-sm">
+                  Loading...
+                </div>
+              </div>
+
+              <!-- Registration Info -->
+              <div
+                class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
+                <h3 class="text-white font-semibold mb-3">What is User Registration?</h3>
+                <ul class="text-gray-300 text-sm space-y-2 mb-4">
+                  <li>• Register your encryption keys (pubkey/epub) on-chain</li>
+                  <li>• Enable encrypted data exchange with other users</li>
+                  <li>• Optional: Deposit stake for better griefing protection</li>
+                  <li>• Free to register - no stake required</li>
+                </ul>
+              </div>
+
+              <!-- Keypair Status -->
+              <div id="keypairStatus"
+                class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
+                <h3 class="text-white font-semibold mb-3">Encryption Keys</h3>
+                <div id="keypairStatusContent" class="text-gray-300 text-sm">
+                  <div class="flex items-center gap-2 mb-2">
+                    <div class="loading-spinner"></div>
+                    <span>Generating encryption keys...</span>
+                  </div>
+                  <p class="text-gray-400 text-xs">Keys are derived from your wallet signature using GunDB SEA</p>
+                </div>
+              </div>
+
+              <!-- Register Button -->
+              <div>
+                <button id="registerUserBtn" class="btn btn-primary w-full py-3 text-base font-semibold"
+                  onclick="registerUser()" disabled>
+                  <span class="relative z-10 flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                      stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                    Register to Protocol
+                  </span>
+                </button>
+                <p class="text-[#606060] text-xs mt-2 text-center">Registration is free and requires no stake</p>
+              </div>
+
+              <!-- Optional Stake Section -->
+              <div
+                class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
+                <h3 class="text-white font-semibold mb-3">Optional: Deposit Stake</h3>
+                <p class="text-gray-300 text-sm mb-4">Depositing stake improves your griefing ratio, making it cheaper
+                  for others to grief you if you misbehave.</p>
+
+                <div class="space-y-3">
+                  <div>
+                    <label class="text-[#A0A0A0] text-sm mb-2 block">Stake Amount (USDC)</label>
+                    <input type="number" id="userStakeAmount" class="input-field" placeholder="0" min="0" step="0.001">
+                    <p class="text-[#606060] text-xs mt-1">Leave 0 if you don't want to stake</p>
+                  </div>
+
+                  <button id="depositStakeBtn" class="btn btn-secondary w-full py-3 font-semibold"
+                    onclick="console.log('🔴 Button clicked! Disabled?', this.disabled); if(!this.disabled && typeof depositUserStake === 'function') { depositUserStake(); } else if(this.disabled) { console.warn('⚠️ Button is disabled'); alert('Button is disabled. Please make sure you are registered as a user first.'); } else { console.error('depositUserStake function not found!'); alert('Error: depositUserStake function not loaded. Please refresh the page.'); }"
+                    disabled>
+                    <span class="relative z-10">Deposit Stake</span>
                   </button>
                 </div>
-
-                <!-- Registration Message -->
-                <div id="registerMessage" class="message"></div>
               </div>
-            </div>
 
+              <!-- Update Keys Section -->
+              <div
+                class="p-5 bg-gradient-to-br from-indigo-500/10 to-purple-600/10 rounded-xl border border-indigo-500/20 backdrop-blur-sm">
+                <h3 class="text-white font-semibold mb-3">Update Encryption Keys</h3>
+                <p class="text-gray-300 text-sm mb-4">If you need to update your encryption keys, click the button below
+                  to regenerate and update them.</p>
+
+                <button id="updateKeysBtn" class="btn btn-secondary w-full py-3 font-semibold"
+                  onclick="updateUserKeys()" disabled>
+                  <span class="relative z-10">Update Keys</span>
+                </button>
+              </div>
+
+              <!-- Registration Message -->
+              <div id="registerMessage" class="message"></div>
+            </div>
           </div>
+
         </div>
       </div>
-    </div>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <!-- Messages -->
+  <div id="message" class="message"></div>
+  </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
 </body>
+
 </html>
