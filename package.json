@@ -25,7 +25,7 @@
     "daisyui": "^5.5.14",
     "shogun-contracts-sdk": "^1.1.1",
     "shogun-ipfs": "^1.1.2",
-    "shogun-relay-sdk": "^1.1.6",
+    "shogun-relay-sdk": "^1.4.3",
     "tailwindcss": "^4.1.18",
     "vercel": "^49.2.0"
   }

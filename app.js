@@ -1848,6 +1848,38 @@ async function uploadToIPFS() {
       uploadStatus.textContent = `Uploading ${selectedFile.name} as public file (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)...`;
     }
     
+    // Always request signature for authentication (required by relay)
+    let walletSignature = null;
+    if (connectedAddress && signer) {
+      try {
+        uploadStatus.textContent = `Requesting signature for authentication...`;
+        const authMessage = 'I Love Shogun';
+        
+        // Request signature from user for authentication
+        showMessage('createMessage', 'info', 'Please sign the message in your wallet to authenticate...');
+        walletSignature = await signer.signMessage(authMessage);
+        
+        // Verify signature (sanity check)
+        const recoveredAddress = ethers.verifyMessage(authMessage, walletSignature);
+        if (recoveredAddress.toLowerCase() !== connectedAddress.toLowerCase()) {
+          throw new Error('Signature verification failed');
+        }
+        
+        console.log('✅ Wallet signature obtained for authentication');
+      } catch (signError) {
+        console.error('❌ Signature request failed:', signError);
+        if (signError.message && signError.message.includes('User rejected')) {
+          showMessage('createMessage', 'error', 'Signature rejected. File not uploaded.');
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = 'Upload to IPFS';
+          uploadStatus.style.display = 'none';
+          return;
+        } else {
+          throw new Error('Failed to get wallet signature: ' + signError.message);
+        }
+      }
+    }
+    
     // Encrypt file using SEA with signature-based token (more secure than address)
     // This requires user to sign a message to prove key ownership
     let fileToUpload = selectedFile;
@@ -1863,15 +1895,8 @@ async function uploadToIPFS() {
         // Same message for all files from this user, allows deterministic key derivation
         encryptionMessage = 'I Love Shogun';
         
-        // Request signature from user
-        showMessage('createMessage', 'info', 'Please sign the message in your wallet to encrypt the file...');
-        const signature = await signer.signMessage(encryptionMessage);
-        
-        // Verify signature (sanity check)
-        const recoveredAddress = ethers.verifyMessage(encryptionMessage, signature);
-        if (recoveredAddress.toLowerCase() !== connectedAddress.toLowerCase()) {
-          throw new Error('Signature verification failed');
-        }
+        // Use the same signature we already got for authentication
+        const signature = walletSignature;
         
         uploadStatus.textContent = `Encrypting ${selectedFile.name}...`;
         
@@ -1932,48 +1957,31 @@ async function uploadToIPFS() {
       uploadStatus.textContent = `Uploading unencrypted ${selectedFile.name}...`;
     }
 
-    const formData = new FormData();
-    formData.append('file', fileToUpload);
+    // Upload to relay's IPFS endpoint using SDK
+    const sdk = getRelaySDK(relayEndpoint);
     
-    // Add encryption info if file is encrypted (for metadata tracking)
-    if (isEncrypted) {
-      formData.append('encrypted', 'true');
-      formData.append('encryptionMethod', 'SEA');
-      // Store token for later decryption (this is just metadata, actual decryption uses /decrypt endpoint)
-      formData.append('encryptionToken', encryptionToken);
-    } else {
-      formData.append('encrypted', 'false');
-      formData.append('public', 'true');
-    }
-
-    // Upload to relay's IPFS endpoint
-    // Mark this as a deal upload (no subscription required, deal is paid on-chain)
-    console.log(`📤 Uploading to: ${relayEndpoint}/api/v1/ipfs/upload`);
+    console.log(`📤 Uploading to: ${relayEndpoint}/api/v1/ipfs/upload using SDK`);
     console.log(`📤 File: ${selectedFile.name}, Size: ${selectedFile.size} bytes`);
-    console.log(`📤 User Address: ${connectedAddress}`);
     
-    const response = await fetch(`${relayEndpoint}/api/v1/ipfs/upload?deal=true`, {
-      method: 'POST',
-      headers: {
-        'X-User-Address': connectedAddress,
-        'X-Deal-Upload': 'true',
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Upload failed:', response.status, errorText);
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch (e) {
-        errorData = { error: errorText || `Upload failed with status ${response.status}` };
-      }
-      throw new Error(errorData.error || `Upload failed: ${response.status}`);
+    const options = {
+      userAddress: connectedAddress,
+      walletSignature: walletSignature,
+      isDealUpload: true,
+      // Pass encryption params if enabled
+      encrypted: isEncrypted,
+      encryptionToken: encryptionToken
+    };
+    
+    const response = await sdk.ipfs.uploadFileBrowser(fileToUpload, options);
+    
+    if (!response.success && !response.data?.success) {
+      const errorText = response.error || response.data?.error || `Upload failed with status ${response.status || 'unknown'}`;
+      throw new Error(errorText);
     }
+    
+    const data = response.data || response;
 
-    const data = await response.json();
+    
     console.log('✅ Upload response:', data);
     
     // Extract CID from response - can be in data.cid or data.file.hash
@@ -3150,28 +3158,52 @@ async function uploadSubscriptionFile() {
     statusEl.textContent = `Uploading ${file.name} as public file...`;
   }
   statusEl.style.color = '#42A5F5';
+
+  // Always request signature for authentication (required by relay)
+  let walletSignature = null;
+  if (connectedAddress && signer) {
+    try {
+      statusEl.textContent = `Requesting signature for authentication...`;
+      const authMessage = 'I Love Shogun';
+      
+      // Request signature from user for authentication
+      showMessage('subscriptionMessage', 'info', 'Please sign the message in your wallet to authenticate...');
+      walletSignature = await signer.signMessage(authMessage);
+      
+      // Verify signature (sanity check)
+      const recoveredAddress = ethers.verifyMessage(authMessage, walletSignature);
+      if (recoveredAddress.toLowerCase() !== connectedAddress.toLowerCase()) {
+        throw new Error('Signature verification failed');
+      }
+      
+      console.log('✅ Wallet signature obtained for authentication');
+    } catch (signError) {
+      console.error('❌ Signature request failed:', signError);
+      if (signError.message && signError.message.includes('User rejected')) {
+        showMessage('subscriptionMessage', 'error', 'Signature rejected. File not uploaded.');
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Upload to IPFS';
+        statusEl.style.display = 'none';
+        return;
+      } else {
+        throw new Error('Failed to get wallet signature: ' + signError.message);
+      }
+    }
+  }
   
   if (encryptionEnabled && gunKeypair && window.Gun && window.Gun.SEA) {
     try {
       statusEl.textContent = `Encrypting ${file.name}...`;
       statusEl.style.color = '#42A5F5';
       
-      // Request signature for encryption (more secure than using address directly)
-      statusEl.textContent = `Requesting signature for encryption...`;
-      showMessage('subscriptionMessage', 'info', 'Please sign the message in your wallet to encrypt the file...');
-      
-      // Create a deterministic message for encryption
-      // Same message for all files from this user, allows deterministic key derivation
-      const encryptionMessage = 'I Love Shogun';
-      
-      // Request signature from user
-      const signature = await signer.signMessage(encryptionMessage);
-      
-      // Verify signature (sanity check)
-      const recoveredAddress = ethers.verifyMessage(encryptionMessage, signature);
-      if (recoveredAddress.toLowerCase() !== connectedAddress.toLowerCase()) {
-        throw new Error('Signature verification failed');
+      // Use the signature we just obtained
+      if (!walletSignature) {
+         // Should have been obtained above if signer exists
+         // If we are here, something is wrong or signer missing (but checked earlier)
+         const encryptionMessage = 'I Love Shogun';
+         walletSignature = await signer.signMessage(encryptionMessage);
       }
+      const signature = walletSignature;
       
       statusEl.textContent = `Encrypting ${file.name}...`;
       
@@ -3219,19 +3251,6 @@ async function uploadSubscriptionFile() {
     }
   }
   
-  const formData = new FormData();
-  formData.append('file', fileToUpload);
-  
-  // Add encryption metadata if file is encrypted
-  if (isEncrypted && encryptionMetadata) {
-    formData.append('encrypted', 'true');
-    formData.append('encryptionMethod', 'SEA');
-    formData.append('encryptionMetadata', JSON.stringify(encryptionMetadata));
-  } else {
-    formData.append('encrypted', 'false');
-    formData.append('public', 'true');
-  }
-
   try {
     uploadBtn.disabled = true;
     uploadBtn.textContent = 'Uploading...';
@@ -3241,24 +3260,23 @@ async function uploadSubscriptionFile() {
       : 'Uploading file to IPFS...';
     statusEl.style.color = '#42A5F5';
 
-    // Upload to relay's IPFS endpoint
-    const response = await fetch(`${relayEndpoint}/api/v1/ipfs/upload`, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'x-user-address': connectedAddress
-      }
-    });
+    // Upload to relay's IPFS endpoint using SDK
+    const sdk = getRelaySDK(relayEndpoint);
+    const options = {
+      userAddress: connectedAddress,
+      walletSignature: walletSignature,
+      // Pass encryption params if enabled
+      encrypted: isEncrypted,
+      encryptionToken: encryptionMetadata ? JSON.stringify(encryptionMetadata) : undefined
+    };
+    
+    const response = await sdk.ipfs.uploadFileBrowser(fileToUpload, options);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Upload failed: ${response.status}`);
+    if (!response.success && !response.data?.success) {
+      throw new Error(response.error || response.data?.error || 'Upload failed');
     }
-
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || 'Upload failed');
-    }
+    
+    const data = response.data || response; // Handle both direct data or axios response wrapper if any
 
     if (isEncrypted) {
       statusEl.textContent = `✅ Encrypted file uploaded successfully! CID: ${data.cid || data.hash}`;
